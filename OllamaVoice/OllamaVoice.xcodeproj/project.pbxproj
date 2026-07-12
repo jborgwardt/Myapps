@@ -38,7 +38,6 @@
 		8F0C258EEDE51F7A6EE23869 /* VoiceHubView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceHubView.swift; sourceTree = "<group>"; };
 		9160B5A95C52D04FB6E2C137 /* OllamaVoice.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = OllamaVoice.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		9A367547E38109599B96C5AA /* ModelDownloadManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelDownloadManager.swift; sourceTree = "<group>"; };
-		9E3C5A39889124CE5F3CCDDB /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		A8D03C9EE3F74DF2A400B4B2 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		C1CEE9F49F696A03D1597658 /* ChatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatView.swift; sourceTree = "<group>"; };
 		C8DD9904D00E8F8859F1F40E /* ChatterboxTTSEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatterboxTTSEngine.swift; sourceTree = "<group>"; };
@@ -148,7 +147,6 @@
 				D543C7284D92076EED9A0D01 /* AppModel.swift */,
 				18DE9010BC661AD74E66FC0A /* Assets.xcassets */,
 				A8D03C9EE3F74DF2A400B4B2 /* ContentView.swift */,
-				9E3C5A39889124CE5F3CCDDB /* Info.plist */,
 				4E7C3B0579726E90587C728A /* OllamaVoiceApp.swift */,
 				7245C7826331B9E9A65574B5 /* Models */,
 				75BB5A361B7F17A1EB8AA31A /* Services */,
@@ -384,12 +382,15 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = OllamaVoice/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "Ollama Voice";
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.vohefett.OllamaVoice;
+				PRODUCT_NAME = OllamaVoice;
 				SDKROOT = iphoneos;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -408,12 +409,15 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = OllamaVoice/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "Ollama Voice";
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.vohefett.OllamaVoice;
+				PRODUCT_NAME = OllamaVoice;
 				SDKROOT = iphoneos;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				TARGETED_DEVICE_FAMILY = "1,2";

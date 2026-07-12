@@ -18,9 +18,11 @@ targets:
       - path: OllamaVoice
         excludes:
           - "**/.DS_Store"
+          - "Info.plist"
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.vohefett.OllamaVoice
+        PRODUCT_NAME: OllamaVoice
         INFOPLIST_FILE: OllamaVoice/Info.plist
         GENERATE_INFOPLIST_FILE: false
         CURRENT_PROJECT_VERSION: 1
@@ -31,7 +33,5 @@ targets:
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
         SWIFT_EMIT_LOC_STRINGS: YES
         ENABLE_PREVIEWS: YES
-    info:
-      path: OllamaVoice/Info.plist
-      properties:
-        UILaunchScreen: {}
+        INFOPLIST_KEY_CFBundleDisplayName: Ollama Voice
+        INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents: YES
