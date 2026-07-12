@@ -1,6 +1,32 @@
 import XCTest
 @testable import LonelyBull
 
+final class LocalLLMManagerTests: XCTestCase {
+    func testTemplateHints() {
+        XCTAssertEqual(LocalLLMManager.templateHint(repoID: "bartowski/Llama-3.2-1B-Instruct-GGUF", fileName: "Llama-3.2-1B-Instruct-Q4_K_M.gguf"), "llama3")
+        XCTAssertEqual(LocalLLMManager.templateHint(repoID: "unsloth/Qwen3-0.6B-GGUF", fileName: "Qwen3-0.6B-Q4_K_M.gguf"), "chatml")
+        XCTAssertEqual(LocalLLMManager.templateHint(repoID: "google/gemma-2-2b-GGUF", fileName: "gemma-2-2b.Q4_K_M.gguf"), "gemma")
+        XCTAssertEqual(LocalLLMManager.templateHint(repoID: "x/Mistral-7B-GGUF", fileName: "mistral.gguf"), "mistral")
+    }
+
+    func testPrettyName() {
+        XCTAssertEqual(
+            LocalLLMManager.prettyName(from: "Qwen2.5-Coder-1.5B-Instruct-abliterated-Q4_K_M.gguf"),
+            "Qwen2.5 Coder 1.5B Instruct abliterated Q4_K_M"
+        )
+    }
+
+    func testLocalModelPrefixRoundTrip() {
+        var settings = AppSettings.default()
+        settings.selectedChatModel = AppSettings.localModelPrefix + "model-Q4_K_M.gguf"
+        XCTAssertTrue(settings.selectedModelIsLocal)
+        XCTAssertEqual(settings.selectedLocalModelFileName, "model-Q4_K_M.gguf")
+        settings.selectedChatModel = "qwen2.5:latest"
+        XCTAssertFalse(settings.selectedModelIsLocal)
+        XCTAssertNil(settings.selectedLocalModelFileName)
+    }
+}
+
 final class OllamaPasteParserTests: XCTestCase {
     func testParsesRunCommand() {
         XCTAssertEqual(

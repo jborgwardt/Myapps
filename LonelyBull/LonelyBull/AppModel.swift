@@ -12,6 +12,8 @@ final class AppModel: ObservableObject {
     let ttsManager: TTSManager
     let modelDownloads: ModelDownloadManager
     let voiceClones: VoiceCloneManager
+    let localLLM: LocalLLMManager
+    let localEngine: LocalChatEngine
 
     private var cancellables = Set<AnyCancellable>()
 
@@ -31,6 +33,8 @@ final class AppModel: ObservableObject {
         self.speechRecognizer = SpeechRecognizer()
         self.modelDownloads = ModelDownloadManager()
         self.voiceClones = VoiceCloneManager()
+        self.localLLM = LocalLLMManager()
+        self.localEngine = LocalChatEngine()
         self.ttsManager = TTSManager(
             downloads: modelDownloads,
             voiceClones: voiceClones,
@@ -164,6 +168,18 @@ struct AppSettings: Codable, Equatable {
 
     var isOllamaConfigured: Bool {
         !ollamaHost.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    /// Prefix marking a model that runs on-device instead of via Ollama.
+    static let localModelPrefix = "local:"
+
+    var selectedModelIsLocal: Bool {
+        selectedChatModel?.hasPrefix(Self.localModelPrefix) == true
+    }
+
+    var selectedLocalModelFileName: String? {
+        guard let selectedChatModel, selectedChatModel.hasPrefix(Self.localModelPrefix) else { return nil }
+        return String(selectedChatModel.dropFirst(Self.localModelPrefix.count))
     }
 
     var ollamaBaseURL: URL? {

@@ -5,6 +5,10 @@ options:
     iOS: "17.0"
   xcodeVersion: "16.0"
   createIntermediateGroups: true
+packages:
+  LLMSwift:
+    url: https://github.com/eastriverlee/LLM.swift
+    exactVersion: 2.1.0
 settings:
   base:
     SWIFT_VERSION: "5.0"
@@ -19,14 +23,17 @@ targets:
         excludes:
           - "**/.DS_Store"
           - "Info.plist"
+    dependencies:
+      - package: LLMSwift
+        product: LLM
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.vohefett.LonelyBull
         PRODUCT_NAME: LonelyBull
         INFOPLIST_FILE: LonelyBull/Info.plist
         GENERATE_INFOPLIST_FILE: false
-        CURRENT_PROJECT_VERSION: 11
-        MARKETING_VERSION: "1.2.0"
+        CURRENT_PROJECT_VERSION: 12
+        MARKETING_VERSION: "1.3.0"
         DEVELOPMENT_TEAM: ""
         CODE_SIGN_STYLE: Automatic
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon

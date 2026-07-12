@@ -4,10 +4,9 @@ struct ChatView: View {
     @EnvironmentObject private var app: AppModel
     @State private var messages: [ChatMessage] = []
     @State private var input = ""
-    @State private var localModels: [OllamaLocalModel] = []
+    @State private var ollamaModels: [OllamaLocalModel] = []
     @State private var isSending = false
     @State private var connectionOK = false
-    @State private var statusText = "Ollama optional"
     @State private var sendTask: Task<Void, Never>?
 
     var body: some View {
@@ -26,14 +25,28 @@ struct ChatView: View {
                 }
             }
             .toolbar(.hidden, for: .navigationBar)
-            .task { await refresh() }
+            .task {
+                await refresh()
+                #if DEBUG
+                await runSmokeTestIfRequested()
+                #endif
+            }
             .onDisappear {
                 sendTask?.cancel()
+                app.localEngine.stopGeneration()
                 app.speechRecognizer.stop()
                 app.ttsManager.stop()
             }
         }
     }
+
+    private var localModels: [LocalLLMModel] { app.localLLM.installed }
+
+    private var hasAnyModel: Bool {
+        !localModels.isEmpty || (app.settings.isOllamaConfigured && !ollamaModels.isEmpty)
+    }
+
+    private var selectedIsLocal: Bool { app.settings.selectedModelIsLocal }
 
     // MARK: Header
 
@@ -41,9 +54,9 @@ struct ChatView: View {
         HStack(spacing: 10) {
             HStack(spacing: 7) {
                 Circle()
-                    .fill(app.settings.isOllamaConfigured ? (connectionOK ? Color.green : Color.orange) : CursorTheme.secondaryText)
+                    .fill(statusColor)
                     .frame(width: 6, height: 6)
-                Text(app.settings.isOllamaConfigured ? app.settings.ollamaHost : "local")
+                Text(statusLabel)
                     .font(.system(.caption, design: .monospaced))
                     .foregroundStyle(CursorTheme.secondaryText)
                     .lineLimit(1)
@@ -54,21 +67,28 @@ struct ChatView: View {
 
             Spacer()
 
-            if !localModels.isEmpty {
+            if hasAnyModel {
                 Menu {
-                    ForEach(localModels) { model in
-                        Button {
-                            app.settings.selectedChatModel = model.name
-                        } label: {
-                            if app.settings.selectedChatModel == model.name {
-                                Label(model.name, systemImage: "checkmark")
-                            } else {
-                                Text(model.name)
+                    if !localModels.isEmpty {
+                        Section("On this iPhone") {
+                            ForEach(localModels) { model in
+                                modelButton(id: AppSettings.localModelPrefix + model.fileName, title: model.displayName)
+                            }
+                        }
+                    }
+                    if app.settings.isOllamaConfigured, !ollamaModels.isEmpty {
+                        Section(app.settings.ollamaHost) {
+                            ForEach(ollamaModels) { model in
+                                modelButton(id: model.name, title: model.name)
                             }
                         }
                     }
                 } label: {
                     HStack(spacing: 5) {
+                        if selectedIsLocal {
+                            Image(systemName: "iphone")
+                                .font(.system(size: 10, weight: .semibold))
+                        }
                         Text(shortModelName)
                             .font(.system(.caption, design: .monospaced))
                             .lineLimit(1)
@@ -87,10 +107,38 @@ struct ChatView: View {
         .padding(.bottom, 10)
     }
 
+    private func modelButton(id: String, title: String) -> some View {
+        Button {
+            app.settings.selectedChatModel = id
+        } label: {
+            if app.settings.selectedChatModel == id {
+                Label(title, systemImage: "checkmark")
+            } else {
+                Text(title)
+            }
+        }
+    }
+
+    private var statusColor: Color {
+        if selectedIsLocal { return .green }
+        if app.settings.isOllamaConfigured { return connectionOK ? .green : .orange }
+        return localModels.isEmpty ? CursorTheme.secondaryText : .green
+    }
+
+    private var statusLabel: String {
+        if selectedIsLocal { return "on-device" }
+        if app.settings.isOllamaConfigured { return app.settings.ollamaHost }
+        return localModels.isEmpty ? "no model yet" : "on-device"
+    }
+
     private var shortModelName: String {
         guard let name = app.settings.selectedChatModel, !name.isEmpty else { return "model" }
-        // "dagbs/qwen2.5-coder-1.5b-…:latest" → "qwen2.5-coder-1.5b-…"
-        let noOwner = name.split(separator: "/").last.map(String.init) ?? name
+        var stripped = name
+        if stripped.hasPrefix(AppSettings.localModelPrefix) {
+            stripped = String(stripped.dropFirst(AppSettings.localModelPrefix.count))
+            stripped = stripped.replacingOccurrences(of: ".gguf", with: "")
+        }
+        let noOwner = stripped.split(separator: "/").last.map(String.init) ?? stripped
         let noTag = noOwner.split(separator: ":").first.map(String.init) ?? noOwner
         return noTag.count > 26 ? String(noTag.prefix(24)) + "…" : noTag
     }
@@ -103,17 +151,15 @@ struct ChatView: View {
             Image(systemName: "waveform")
                 .font(.system(size: 34, weight: .light))
                 .foregroundStyle(CursorTheme.secondaryText)
-            Text(app.settings.isOllamaConfigured ? "Ask anything" : "Voice works on-device")
+            Text(hasAnyModel ? "Ask anything" : "No model yet")
                 .font(.title3.weight(.medium))
-            Text(app.settings.isOllamaConfigured
-                 ? "Replies stream from \(app.settings.ollamaHost) and can be spoken aloud."
-                 : "Mic + TTS run locally. Connect an optional Ollama host in Settings for chat.")
+            Text(emptyStateDetail)
                 .font(.footnote)
                 .foregroundStyle(CursorTheme.secondaryText)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 44)
-            if !app.settings.isOllamaConfigured {
-                Button("Configure Ollama") { app.selectedTab = .settings }
+            if !hasAnyModel {
+                Button("Get a local model") { app.selectedTab = .models }
                     .glassButton()
                     .padding(.top, 4)
             }
@@ -121,6 +167,16 @@ struct ChatView: View {
             Spacer()
         }
         .frame(maxWidth: .infinity)
+    }
+
+    private var emptyStateDetail: String {
+        if selectedIsLocal {
+            return "Running fully on this iPhone — no server, works offline. Replies can be spoken aloud."
+        }
+        if hasAnyModel {
+            return "Replies stream from \(app.settings.ollamaHost) and can be spoken aloud."
+        }
+        return "Download a model in the Models tab to chat fully on-device — no server needed. Ollama stays optional in Settings."
     }
 
     // MARK: Messages
@@ -150,6 +206,16 @@ struct ChatView: View {
 
     private var composer: some View {
         VStack(spacing: 8) {
+            if app.localEngine.isLoading {
+                HStack(spacing: 8) {
+                    ProgressView().scaleEffect(0.7)
+                    Text("Loading model into memory…")
+                        .font(.footnote)
+                        .foregroundStyle(CursorTheme.secondaryText)
+                    Spacer()
+                }
+                .padding(.horizontal, 20)
+            }
             if app.speechRecognizer.isRecording {
                 HStack(spacing: 8) {
                     Image(systemName: "waveform")
@@ -167,7 +233,7 @@ struct ChatView: View {
             HStack(alignment: .bottom, spacing: 10) {
                 HStack(alignment: .bottom, spacing: 8) {
                     TextField(
-                        app.settings.isOllamaConfigured ? "Ask anything" : "Voice-only — add Ollama in Settings",
+                        hasAnyModel ? "Ask anything" : "Get a model in the Models tab",
                         text: $input,
                         axis: .vertical
                     )
@@ -175,7 +241,7 @@ struct ChatView: View {
                     .lineLimit(1...5)
                     .padding(.leading, 16)
                     .padding(.vertical, 12)
-                    .disabled(!app.settings.isOllamaConfigured)
+                    .disabled(!hasAnyModel)
 
                     Button {
                         Task {
@@ -202,6 +268,7 @@ struct ChatView: View {
                 if isSending {
                     Button {
                         sendTask?.cancel()
+                        app.localEngine.stopGeneration()
                         isSending = false
                     } label: {
                         Image(systemName: "square.fill")
@@ -231,67 +298,87 @@ struct ChatView: View {
     }
 
     private var canSend: Bool {
-        app.settings.isOllamaConfigured && !input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        hasAnyModel && !input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     // MARK: Logic
 
     private func refresh() async {
-        guard app.settings.isOllamaConfigured, let url = app.settings.ollamaBaseURL else {
-            connectionOK = false
-            statusText = "Ollama not configured"
-            localModels = []
-            return
-        }
-        do {
-            await app.ollama.updateBaseURL(url)
-            connectionOK = try await app.ollama.health()
-            localModels = try await app.ollama.listLocalModels()
-            if let selected = app.settings.selectedChatModel,
-               localModels.contains(where: { $0.name == selected }) {
-                // keep
-            } else {
-                app.settings.selectedChatModel = localModels.first?.name
+        // Pick a sensible default model: prefer what's already selected, else first local, else first Ollama.
+        if app.settings.isOllamaConfigured, let url = app.settings.ollamaBaseURL {
+            do {
+                await app.ollama.updateBaseURL(url)
+                connectionOK = try await app.ollama.health()
+                ollamaModels = try await app.ollama.listLocalModels()
+            } catch {
+                connectionOK = false
+                ollamaModels = []
             }
-            statusText = connectionOK
-                ? "\(app.settings.ollamaHost):\(app.settings.ollamaPort) · \(localModels.count) models"
-                : "Ollama unreachable"
-        } catch {
+        } else {
             connectionOK = false
-            statusText = error.localizedDescription
-            localModels = []
+            ollamaModels = []
+        }
+
+        let selected = app.settings.selectedChatModel
+        let selectionValid: Bool = {
+            guard let selected else { return false }
+            if selected.hasPrefix(AppSettings.localModelPrefix) {
+                let file = String(selected.dropFirst(AppSettings.localModelPrefix.count))
+                return localModels.contains { $0.fileName == file }
+            }
+            return ollamaModels.contains { $0.name == selected }
+        }()
+
+        if !selectionValid {
+            if let firstLocal = localModels.first {
+                app.settings.selectedChatModel = AppSettings.localModelPrefix + firstLocal.fileName
+            } else if let firstRemote = ollamaModels.first {
+                app.settings.selectedChatModel = firstRemote.name
+            } else {
+                app.settings.selectedChatModel = nil
+            }
         }
     }
 
     private func send() async {
-        guard app.settings.isOllamaConfigured else { return }
         let text = input.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
-        let model = app.settings.selectedChatModel?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        guard !model.isEmpty else {
-            statusText = "Pull a model first"
-            return
-        }
+        guard let model = app.settings.selectedChatModel, !model.isEmpty else { return }
 
         input = ""
         app.speechRecognizer.stop()
+        let priorMessages = messages
         messages.append(ChatMessage(role: .user, content: text))
         let assistantID = UUID()
         messages.append(ChatMessage(id: assistantID, role: .assistant, content: "", isStreaming: true))
         isSending = true
 
-        let history = Array(messages.filter { !$0.isStreaming }.suffix(40))
-        let payload = history.map { OllamaChatMessage(role: $0.role.rawValue, content: $0.content) }
-
         var assembled = ""
         do {
-            if let url = app.settings.ollamaBaseURL {
-                await app.ollama.updateBaseURL(url)
-            }
-            for try await chunk in await app.ollama.chat(model: model, messages: payload) {
-                if Task.isCancelled { break }
-                assembled += chunk
-                updateAssistant(id: assistantID, content: assembled, streaming: true)
+            if model.hasPrefix(AppSettings.localModelPrefix) {
+                let fileName = String(model.dropFirst(AppSettings.localModelPrefix.count))
+                guard let localModel = localModels.first(where: { $0.fileName == fileName }) else {
+                    throw LocalChatEngine.LocalLLMError.loadFailed(fileName)
+                }
+                let stream = try await app.localEngine.stream(prompt: text, history: priorMessages, model: localModel)
+                for await chunk in stream {
+                    if Task.isCancelled { break }
+                    assembled += chunk
+                    updateAssistant(id: assistantID, content: assembled, streaming: true)
+                }
+            } else {
+                let history = Array((priorMessages + [ChatMessage(role: .user, content: text)])
+                    .filter { !$0.isStreaming }
+                    .suffix(40))
+                let payload = history.map { OllamaChatMessage(role: $0.role.rawValue, content: $0.content) }
+                if let url = app.settings.ollamaBaseURL {
+                    await app.ollama.updateBaseURL(url)
+                }
+                for try await chunk in await app.ollama.chat(model: model, messages: payload) {
+                    if Task.isCancelled { break }
+                    assembled += chunk
+                    updateAssistant(id: assistantID, content: assembled, streaming: true)
+                }
             }
             updateAssistant(id: assistantID, content: assembled.isEmpty && Task.isCancelled ? "(cancelled)" : assembled, streaming: false)
             if !Task.isCancelled, app.settings.speakResponses, !assembled.isEmpty {
@@ -311,6 +398,18 @@ struct ChatView: View {
         messages[idx].content = content
         messages[idx].isStreaming = streaming
     }
+
+    #if DEBUG
+    /// `-smokeTestPrompt "…"` launch arg: auto-send one message so CI can verify on-device inference.
+    private func runSmokeTestIfRequested() async {
+        guard let prompt = UserDefaults.standard.string(forKey: "smokeTestPrompt"),
+              !prompt.isEmpty, messages.isEmpty else { return }
+        input = prompt
+        await send()
+        NSLog("SMOKETEST_MODEL: %@", app.settings.selectedChatModel ?? "(none)")
+        NSLog("SMOKETEST_RESULT: %@", messages.last?.content ?? "(none)")
+    }
+    #endif
 }
 
 /// Cursor-style rows: user prompts sit in a soft gray bubble on the right,
