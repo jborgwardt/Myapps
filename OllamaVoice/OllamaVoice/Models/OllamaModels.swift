@@ -77,19 +77,16 @@ struct OllamaCatalogEntry: Identifiable, Hashable {
     let sizeHint: String
 
     static let curated: [OllamaCatalogEntry] = [
-        .init(id: "llama3.2", name: "llama3.2", description: "Meta Llama 3.2 — fast general chat", tags: ["chat", "meta"], sizeHint: "2B / 3B"),
-        .init(id: "llama3.2:3b", name: "llama3.2:3b", description: "Llama 3.2 3B — good on Ryzen/iGPU hosts", tags: ["chat", "small"], sizeHint: "~2 GB"),
-        .init(id: "llama3.1", name: "llama3.1", description: "Meta Llama 3.1", tags: ["chat", "meta"], sizeHint: "8B+"),
-        .init(id: "mistral", name: "mistral", description: "Mistral 7B Instruct", tags: ["chat"], sizeHint: "~4 GB"),
-        .init(id: "qwen2.5", name: "qwen2.5", description: "Qwen 2.5 — strong reasoning", tags: ["chat", "code"], sizeHint: "3B–72B"),
-        .init(id: "qwen2.5:7b", name: "qwen2.5:7b", description: "Qwen 2.5 7B", tags: ["chat"], sizeHint: "~4.7 GB"),
-        .init(id: "gemma2", name: "gemma2", description: "Google Gemma 2", tags: ["chat", "google"], sizeHint: "2B / 9B"),
-        .init(id: "phi3", name: "phi3", description: "Microsoft Phi-3 Mini", tags: ["chat", "small"], sizeHint: "~2.2 GB"),
-        .init(id: "deepseek-r1", name: "deepseek-r1", description: "DeepSeek R1 reasoning distillations", tags: ["reasoning"], sizeHint: "1.5B–70B"),
-        .init(id: "deepseek-r1:8b", name: "deepseek-r1:8b", description: "DeepSeek R1 8B distill", tags: ["reasoning"], sizeHint: "~4.9 GB"),
-        .init(id: "codellama", name: "codellama", description: "Code Llama", tags: ["code"], sizeHint: "7B+"),
-        .init(id: "nomic-embed-text", name: "nomic-embed-text", description: "Embedding model", tags: ["embed"], sizeHint: "~274 MB"),
-        .init(id: "llava", name: "llava", description: "Vision-language model", tags: ["vision"], sizeHint: "~4.5 GB"),
-        .init(id: "moondream", name: "moondream", description: "Tiny vision model", tags: ["vision", "small"], sizeHint: "~1.7 GB"),
+        .init(
+            id: "coder-ablit",
+            name: AppSettings.suggestedCodingModel,
+            description: "Lightweight abliterated Qwen2.5 coder (~1.5B) — good default for voice + coding",
+            tags: ["code", "abliterated", "voice"],
+            sizeHint: "~1–2 GB"
+        ),
+        .init(id: "llama3.2:1b", name: "llama3.2:1b", description: "Tiny Llama 3.2 for fast spoken chat", tags: ["chat", "small", "voice"], sizeHint: "~1.3 GB"),
+        .init(id: "llama3.2:3b", name: "llama3.2:3b", description: "Llama 3.2 3B — still voice-friendly", tags: ["chat", "small"], sizeHint: "~2 GB"),
+        .init(id: "phi3:mini", name: "phi3:mini", description: "Phi-3 Mini", tags: ["chat", "small"], sizeHint: "~2.2 GB"),
+        .init(id: "qwen2.5:3b", name: "qwen2.5:3b", description: "Qwen 2.5 3B", tags: ["chat", "code"], sizeHint: "~2 GB"),
     ]
 }

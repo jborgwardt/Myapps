@@ -3,13 +3,13 @@ import SwiftUI
 struct ChatView: View {
     @EnvironmentObject private var app: AppModel
     @State private var messages: [ChatMessage] = [
-        ChatMessage(role: .assistant, content: "Connected to Ollama. Pick a model and ask anything — or hold the mic to talk.")
+        ChatMessage(role: .assistant, content: "Voice works on-device. Connect an optional Ollama host in Settings if you want server chat.")
     ]
     @State private var input = ""
     @State private var localModels: [OllamaLocalModel] = []
     @State private var isSending = false
     @State private var connectionOK = false
-    @State private var statusText = "Checking Ollama…"
+    @State private var statusText = "Ollama optional"
     @State private var sendTask: Task<Void, Never>?
 
     var body: some View {
@@ -28,11 +28,14 @@ struct ChatView: View {
                 VStack(spacing: 0) {
                     header
                     Divider().overlay(Color.white.opacity(0.08))
+                    if !app.settings.isOllamaConfigured {
+                        setupBanner
+                    }
                     messageList
                     composer
                 }
             }
-            .navigationTitle("Ollama Voice")
+            .navigationTitle("Chat")
             .navigationBarTitleDisplayMode(.inline)
             .task { await refresh() }
             .onDisappear {
@@ -43,27 +46,36 @@ struct ChatView: View {
         }
     }
 
+    private var setupBanner: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("No Ollama backend configured")
+                .font(.headline)
+            Text("Mic + TTS still work from the Voice tab. Add a host in Settings only when you want pulls/chat against a server.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Button("Configure Ollama") { app.selectedTab = .settings }
+                .buttonStyle(.borderedProminent)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding()
+        .background(Color.white.opacity(0.06))
+    }
+
     private var header: some View {
         HStack(spacing: 12) {
             Circle()
-                .fill(connectionOK ? Color.green : Color.orange)
+                .fill(app.settings.isOllamaConfigured ? (connectionOK ? Color.green : Color.orange) : Color.secondary)
                 .frame(width: 8, height: 8)
             Text(statusText)
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .lineLimit(2)
             Spacer()
-            if localModels.isEmpty {
-                Text("No models")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            } else {
+            if !localModels.isEmpty {
                 Picker("Model", selection: Binding(
                     get: {
                         let current = app.settings.selectedChatModel ?? ""
-                        if localModels.contains(where: { $0.name == current }) {
-                            return current
-                        }
+                        if localModels.contains(where: { $0.name == current }) { return current }
                         return localModels.first?.name ?? ""
                     },
                     set: { app.settings.selectedChatModel = $0.isEmpty ? nil : $0 }
@@ -126,13 +138,13 @@ struct ChatView: View {
                         .foregroundStyle(app.speechRecognizer.isRecording ? Color.red : Color.primary)
                         .frame(width: 40, height: 40)
                 }
-                .disabled(isSending)
 
-                TextField("Message", text: $input, axis: .vertical)
+                TextField(app.settings.isOllamaConfigured ? "Message" : "Configure Ollama to chat", text: $input, axis: .vertical)
                     .textFieldStyle(.plain)
                     .lineLimit(1...5)
                     .padding(10)
                     .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 12))
+                    .disabled(!app.settings.isOllamaConfigured)
 
                 if isSending {
                     Button {
@@ -152,7 +164,7 @@ struct ChatView: View {
                             .font(.system(size: 32))
                             .symbolRenderingMode(.hierarchical)
                     }
-                    .disabled(input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    .disabled(!app.settings.isOllamaConfigured || input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
             }
             .padding(.horizontal)
@@ -163,8 +175,14 @@ struct ChatView: View {
     }
 
     private func refresh() async {
+        guard app.settings.isOllamaConfigured, let url = app.settings.ollamaBaseURL else {
+            connectionOK = false
+            statusText = "Ollama not configured"
+            localModels = []
+            return
+        }
         do {
-            await app.ollama.updateBaseURL(app.settings.ollamaBaseURL)
+            await app.ollama.updateBaseURL(url)
             connectionOK = try await app.ollama.health()
             localModels = try await app.ollama.listLocalModels()
             if let selected = app.settings.selectedChatModel,
@@ -176,8 +194,6 @@ struct ChatView: View {
             statusText = connectionOK
                 ? "\(app.settings.ollamaHost):\(app.settings.ollamaPort) · \(localModels.count) models"
                 : "Ollama unreachable"
-        } catch is CancellationError {
-            // ignore
         } catch {
             connectionOK = false
             statusText = error.localizedDescription
@@ -186,9 +202,9 @@ struct ChatView: View {
     }
 
     private func send() async {
+        guard app.settings.isOllamaConfigured else { return }
         let text = input.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
-
         let model = app.settings.selectedChatModel?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         guard !model.isEmpty else {
             statusText = "Pull a model first"
@@ -202,13 +218,14 @@ struct ChatView: View {
         messages.append(ChatMessage(id: assistantID, role: .assistant, content: "", isStreaming: true))
         isSending = true
 
-        // Cap history so huge threads don't blow memory / payload size.
         let history = Array(messages.filter { !$0.isStreaming }.suffix(40))
         let payload = history.map { OllamaChatMessage(role: $0.role.rawValue, content: $0.content) }
 
         var assembled = ""
         do {
-            await app.ollama.updateBaseURL(app.settings.ollamaBaseURL)
+            if let url = app.settings.ollamaBaseURL {
+                await app.ollama.updateBaseURL(url)
+            }
             for try await chunk in await app.ollama.chat(model: model, messages: payload) {
                 if Task.isCancelled { break }
                 assembled += chunk

@@ -2,39 +2,38 @@ import SwiftUI
 
 struct ModelsView: View {
     @EnvironmentObject private var app: AppModel
+    @StateObject private var puller = ModelPullController()
     @State private var local: [OllamaLocalModel] = []
+    @State private var pasteField = AppSettings.suggestedCodingModel
     @State private var query = ""
-    @State private var pulling: String?
-    @State private var pullProgress: Double?
-    @State private var pullStatus = ""
-    @State private var errorText: String?
-    @State private var pasteField = ""
-
     @State private var hfHits: [HuggingFaceLLMHit] = []
     @State private var isSearching = false
     @State private var searchError: String?
     @State private var searchTask: Task<Void, Never>?
-    @State private var pullTask: Task<Void, Never>?
+    @State private var listError: String?
 
     private let hf = HuggingFaceSearchService()
-
-    private var filteredCatalog: [OllamaCatalogEntry] {
-        let q = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        guard !q.isEmpty else { return OllamaCatalogEntry.curated }
-        return OllamaCatalogEntry.curated.filter {
-            $0.name.lowercased().contains(q)
-                || $0.description.lowercased().contains(q)
-                || $0.tags.contains(where: { $0.contains(q) })
-        }
-    }
 
     private var parsedPasteName: String? {
         OllamaPasteParser.modelName(from: pasteField)
     }
 
+    private var ollamaReady: Bool { app.settings.isOllamaConfigured }
+
     var body: some View {
         NavigationStack {
             List {
+                if !ollamaReady {
+                    Section {
+                        Text("Ollama is optional. Voice works on-device without it. Add a host in Settings only if you want server-side chat/pulls.")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                        Button("Open Settings") { app.selectedTab = .settings }
+                    } header: {
+                        Text("No Ollama backend")
+                    }
+                }
+
                 Section {
                     TextField(
                         "Paste ollama run …, ollama.com link, or model name",
@@ -45,6 +44,7 @@ struct ModelsView: View {
                     .autocorrectionDisabled()
                     .keyboardType(.URL)
                     .lineLimit(1...4)
+                    .disabled(!ollamaReady || puller.isPulling)
 
                     if let parsed = parsedPasteName {
                         LabeledContent("Will pull", value: parsed)
@@ -52,140 +52,153 @@ struct ModelsView: View {
                     }
 
                     Button {
-                        Task { await pullFromPaste() }
+                        guard let name = parsedPasteName else { return }
+                        guard let url = app.settings.ollamaBaseURL else { return }
+                        puller.pull(name: name, client: app.ollama, baseURL: url)
                     } label: {
-                        if pulling != nil {
-                            HStack {
-                                ProgressView()
-                                Text("Pulling…")
-                            }
-                        } else {
-                            Text("Pull & save locally")
-                        }
+                        Text(puller.isPulling ? "Pulling…" : "Pull & save to Ollama")
                     }
                     .buttonStyle(.borderedProminent)
-                    .disabled(parsedPasteName == nil || pulling != nil)
+                    .disabled(!ollamaReady || parsedPasteName == nil || puller.isPulling)
 
-                    if pulling != nil {
-                        Button("Cancel pull", role: .destructive) {
-                            pullTask?.cancel()
-                            pulling = nil
-                            pullProgress = nil
-                            pullStatus = "Cancelled"
-                        }
-                    }
-
-                    if let pulling {
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text(pulling).font(.caption).textSelection(.enabled)
-                            if let pullProgress {
-                                ProgressView(value: pullProgress)
-                                Text("\(Int(pullProgress * 100))% · \(pullStatus)")
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
-                            } else {
+                    if puller.isPulling || puller.fraction != nil || !puller.statusText.isEmpty {
+                        VStack(alignment: .leading, spacing: 8) {
+                            if !puller.modelName.isEmpty {
+                                Text(puller.modelName)
+                                    .font(.caption)
+                                    .textSelection(.enabled)
+                            }
+                            if let fraction = puller.fraction {
+                                ProgressView(value: fraction)
+                                    .progressViewStyle(.linear)
+                            } else if puller.isPulling {
                                 ProgressView()
-                                Text(pullStatus)
+                                    .progressViewStyle(.linear)
+                            }
+                            HStack {
+                                Text(puller.statusText)
+                                Spacer()
+                                if let fraction = puller.fraction {
+                                    Text("\(Int(fraction * 100))%")
+                                }
+                            }
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            if !puller.byteLabel.isEmpty {
+                                Text(puller.byteLabel)
                                     .font(.caption2)
                                     .foregroundStyle(.secondary)
                             }
+                            if puller.isPulling {
+                                Button("Cancel", role: .destructive) { puller.cancel() }
+                            }
                         }
+                        .padding(.vertical, 4)
                     }
 
-                    if let errorText {
-                        Text(errorText)
+                    if let error = puller.errorText ?? listError {
+                        Text(error)
                             .foregroundStyle(.red)
                             .font(.caption)
                             .textSelection(.enabled)
-                    } else if pullStatus.lowercased().hasPrefix("saved") {
-                        Text(pullStatus)
+                    } else if puller.didSucceed {
+                        Text(puller.statusText)
                             .foregroundStyle(.green)
                             .font(.caption)
                     }
                 } header: {
-                    Text("Paste run command or link")
+                    Text("Pull to optional Ollama host")
                 } footer: {
-                    Text("Examples: `ollama run richardyoung/qwythos-9b-abliterated` · https://ollama.com/richardyoung/qwythos-9b-abliterated · llama3.2:3b")
+                    Text("Prefilled suggestion: lightweight abliterated coding model that pairs well with spoken replies. Paste any `ollama run …` or ollama.com link.")
                 }
 
-                Section("Installed on \(app.settings.ollamaHost)") {
-                    if local.isEmpty {
-                        Text("No models on the Ollama host yet.")
-                            .foregroundStyle(.secondary)
+                if ollamaReady {
+                    Section("Installed on \(app.settings.ollamaHost)") {
+                        if local.isEmpty {
+                            Text("Nothing installed on this host yet.")
+                                .foregroundStyle(.secondary)
+                        }
+                        ForEach(local) { model in
+                            HStack {
+                                VStack(alignment: .leading) {
+                                    Text(model.name).font(.headline)
+                                    Text(model.displaySize).font(.caption).foregroundStyle(.secondary)
+                                }
+                                Spacer()
+                                Button("Use") { app.settings.selectedChatModel = model.name }
+                                    .buttonStyle(.bordered)
+                            }
+                            .swipeActions {
+                                Button(role: .destructive) {
+                                    Task { await delete(model.name) }
+                                } label: {
+                                    Label("Delete", systemImage: "trash")
+                                }
+                            }
+                        }
                     }
-                    ForEach(local) { model in
+
+                    Section {
+                        Button("Pull suggested coding agent") {
+                            pasteField = AppSettings.suggestedCodingModel
+                            guard let url = app.settings.ollamaBaseURL else { return }
+                            puller.pull(name: AppSettings.suggestedCodingModel, client: app.ollama, baseURL: url)
+                        }
+                        .disabled(puller.isPulling)
+
+                        ForEach(OllamaCatalogEntry.curated) { entry in
+                            HStack {
+                                VStack(alignment: .leading) {
+                                    Text(entry.name).font(.headline)
+                                    Text(entry.description).font(.caption).foregroundStyle(.secondary)
+                                }
+                                Spacer()
+                                Button("Pull") {
+                                    guard let url = app.settings.ollamaBaseURL else { return }
+                                    puller.pull(name: entry.name, client: app.ollama, baseURL: url)
+                                }
+                                .disabled(puller.isPulling)
+                            }
+                        }
+                    } header: {
+                        Text("Suggestions")
+                    }
+
+                    Section {
                         HStack {
-                            VStack(alignment: .leading) {
-                                Text(model.name).font(.headline)
-                                Text(model.displaySize).font(.caption).foregroundStyle(.secondary)
-                            }
-                            Spacer()
-                            Button("Use") {
-                                app.settings.selectedChatModel = model.name
-                            }
-                            .buttonStyle(.bordered)
+                            TextField("Search Hugging Face GGUF", text: $query)
+                                .textInputAutocapitalization(.never)
+                                .autocorrectionDisabled()
+                                .onChange(of: query) { _, newValue in scheduleSearch(newValue) }
+                            if isSearching { ProgressView() }
                         }
-                        .swipeActions {
-                            Button(role: .destructive) {
-                                Task { await delete(model.name) }
-                            } label: {
-                                Label("Delete", systemImage: "trash")
+                        if let searchError { Text(searchError).font(.caption).foregroundStyle(.red) }
+                        ForEach(hfHits.prefix(20)) { hit in
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text(hit.modelID).font(.subheadline)
+                                Text(hit.detail).font(.caption2).foregroundStyle(.secondary)
+                                Button("Pull") {
+                                    Task { await pullHF(hit) }
+                                }
+                                .disabled(puller.isPulling)
                             }
                         }
-                    }
-                }
-
-                Section {
-                    HStack {
-                        Image(systemName: "magnifyingglass")
-                            .foregroundStyle(.secondary)
-                        TextField("Search Hugging Face (optional)", text: $query)
-                            .textInputAutocapitalization(.never)
-                            .autocorrectionDisabled()
-                            .onChange(of: query) { _, newValue in
-                                scheduleSearch(newValue)
-                            }
-                        if isSearching { ProgressView() }
-                    }
-
-                    if let searchError {
-                        Text(searchError).font(.caption).foregroundStyle(.red)
-                    }
-
-                    ForEach(hfHits) { hit in
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text(hit.modelID).font(.headline)
-                            Text(hit.detail).font(.caption).foregroundStyle(.secondary)
-                            Button("Pull & save locally") {
-                                Task { await pullHF(hit) }
-                            }
-                            .buttonStyle(.borderedProminent)
-                            .disabled(pulling != nil)
-                        }
-                    }
-                } header: {
-                    Text("Hugging Face → Ollama")
-                }
-
-                Section("Quick picks") {
-                    ForEach(filteredCatalog) { entry in
-                        HStack {
-                            VStack(alignment: .leading) {
-                                Text(entry.name).font(.headline)
-                                Text(entry.description).font(.caption).foregroundStyle(.secondary)
-                            }
-                            Spacer()
-                            Button("Pull") {
-                                Task { await pull(entry.name) }
-                            }
-                            .disabled(pulling != nil)
-                        }
+                    } header: {
+                        Text("Hugging Face (optional)")
                     }
                 }
             }
             .navigationTitle("Models")
             .refreshable { await refresh() }
             .task { await refresh() }
+            .onChange(of: puller.didSucceed) { _, ok in
+                if ok {
+                    Task { await refresh() }
+                    if !puller.modelName.isEmpty {
+                        app.settings.selectedChatModel = puller.modelName
+                    }
+                }
+            }
         }
     }
 
@@ -213,84 +226,29 @@ struct ModelsView: View {
         }
     }
 
-    private func pullFromPaste() async {
-        guard let name = parsedPasteName else {
-            errorText = "Couldn’t parse a model name from that text."
-            return
-        }
-        pullTask?.cancel()
-        pullTask = Task { await pull(name) }
-        await pullTask?.value
-    }
-
     private func pullHF(_ hit: HuggingFaceLLMHit) async {
-        pullTask?.cancel()
-        pullTask = Task {
-            do {
-                pulling = hit.modelID
-                pullStatus = "Resolving GGUF quant…"
-                errorText = nil
-                let name = try await hf.resolveOllamaPullName(for: hit)
-                await pull(name)
-            } catch is CancellationError {
-                pullStatus = "Cancelled"
-                pulling = nil
-            } catch {
-                errorText = error.localizedDescription
-                pulling = nil
-            }
+        guard let url = app.settings.ollamaBaseURL else { return }
+        do {
+            let name = try await hf.resolveOllamaPullName(for: hit)
+            puller.pull(name: name, client: app.ollama, baseURL: url)
+        } catch {
+            listError = error.localizedDescription
         }
-        await pullTask?.value
     }
 
     private func refresh() async {
+        guard ollamaReady, let url = app.settings.ollamaBaseURL else {
+            local = []
+            return
+        }
         do {
+            await app.ollama.updateBaseURL(url)
             local = try await app.ollama.listLocalModels()
-        } catch is CancellationError {
-            // ignore
+            listError = nil
         } catch {
-            errorText = error.localizedDescription
+            listError = error.localizedDescription
+            local = []
         }
-    }
-
-    private func pull(_ name: String) async {
-        let trimmed = OllamaClient.normalizePullName(name)
-        guard !trimmed.isEmpty else { return }
-        pulling = trimmed
-        pullProgress = nil
-        pullStatus = "starting"
-        errorText = nil
-        do {
-            await app.ollama.updateBaseURL(app.settings.ollamaBaseURL)
-            for try await status in await app.ollama.pullModel(name: trimmed) {
-                if Task.isCancelled { throw CancellationError() }
-                if let err = status.error, !err.isEmpty {
-                    throw OllamaError.pullFailed(err)
-                }
-                pullStatus = status.status ?? pullStatus
-                if let progress = status.progress {
-                    pullProgress = progress
-                }
-            }
-            await refresh()
-            if let match = local.first(where: {
-                OllamaClient.modelMatchesPull(localName: $0.name, pullName: trimmed)
-            }) {
-                app.settings.selectedChatModel = match.name
-                pullStatus = "Saved \(match.name)"
-                pasteField = ""
-            } else {
-                app.settings.selectedChatModel = trimmed
-                pullStatus = "Saved \(trimmed)"
-            }
-        } catch is CancellationError {
-            pullStatus = "Cancelled"
-        } catch {
-            errorText = error.localizedDescription
-            pullStatus = "Failed"
-        }
-        pulling = nil
-        pullProgress = nil
     }
 
     private func delete(_ name: String) async {
@@ -298,7 +256,7 @@ struct ModelsView: View {
             try await app.ollama.deleteModel(name: name)
             await refresh()
         } catch {
-            errorText = error.localizedDescription
+            listError = error.localizedDescription
         }
     }
 }

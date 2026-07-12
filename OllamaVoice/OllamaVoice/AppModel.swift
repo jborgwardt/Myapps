@@ -18,7 +18,10 @@ final class AppModel: ObservableObject {
     init() {
         let settings = AppSettings.load()
         self.settings = settings
-        self.ollama = OllamaClient(baseURL: settings.ollamaBaseURL)
+        self.selectedTab = .voice
+        // Placeholder URL until the user configures an optional Ollama backend.
+        let bootstrap = settings.ollamaBaseURL ?? URL(string: "http://127.0.0.1:\(AppSettings.defaultPort)")!
+        self.ollama = OllamaClient(baseURL: bootstrap)
         self.speechRecognizer = SpeechRecognizer()
         self.modelDownloads = ModelDownloadManager()
         self.voiceClones = VoiceCloneManager()
@@ -33,6 +36,7 @@ final class AppModel: ObservableObject {
             .removeDuplicates()
             .debounce(for: .milliseconds(200), scheduler: RunLoop.main)
             .sink { [weak self] url in
+                guard let url else { return }
                 Task { await self?.ollama.updateBaseURL(url) }
             }
             .store(in: &cancellables)
@@ -96,8 +100,14 @@ struct AppSettings: Codable, Equatable {
     var speakResponses: Bool
     var chatterboxEndpoint: String?
 
-    static let defaultHost = "100.64.0.2"
+    /// Empty = Ollama disabled until the user opts in.
+    static let defaultHost = ""
     static let defaultPort = 11434
+    static let settingsSchemaKey = "app.settings.schema"
+    static let currentSchema = 2
+
+    /// Suggested lightweight abliterated coding model that also works well with spoken replies.
+    static let suggestedCodingModel = "dagbs/qwen2.5-coder-1.5b-instruct-abliterated:latest"
 
     enum CodingKeys: String, CodingKey {
         case ollamaScheme, ollamaHost, ollamaPort, ollamaPathPrefix
@@ -146,7 +156,13 @@ struct AppSettings: Codable, Equatable {
         chatterboxEndpoint = try c.decodeIfPresent(String.self, forKey: .chatterboxEndpoint)
     }
 
-    var ollamaBaseURL: URL {
+    var isOllamaConfigured: Bool {
+        !ollamaHost.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    var ollamaBaseURL: URL? {
+        guard isOllamaConfigured else { return nil }
+        let host = ollamaHost.trimmingCharacters(in: .whitespacesAndNewlines)
         var normalizedPrefix = ollamaPathPrefix.trimmingCharacters(in: .whitespacesAndNewlines)
         if !normalizedPrefix.isEmpty, !normalizedPrefix.hasPrefix("/") {
             normalizedPrefix = "/" + normalizedPrefix
@@ -154,8 +170,8 @@ struct AppSettings: Codable, Equatable {
         if normalizedPrefix.hasSuffix("/") {
             normalizedPrefix.removeLast()
         }
-        let base = "\(ollamaScheme.rawValue)://\(ollamaHost):\(ollamaPort)\(normalizedPrefix)"
-        return URL(string: base) ?? URL(string: "http://\(Self.defaultHost):\(Self.defaultPort)")!
+        let port = (1...65535).contains(ollamaPort) ? ollamaPort : Self.defaultPort
+        return URL(string: "\(ollamaScheme.rawValue)://\(host):\(port)\(normalizedPrefix)")
     }
 
     static func `default`() -> AppSettings {
@@ -175,16 +191,25 @@ struct AppSettings: Codable, Equatable {
     }
 
     static func load() -> AppSettings {
+        let storedSchema = UserDefaults.standard.integer(forKey: settingsSchemaKey)
         if let data = UserDefaults.standard.data(forKey: "app.settings"),
-           let decoded = try? JSONDecoder().decode(AppSettings.self, from: data) {
+           var decoded = try? JSONDecoder().decode(AppSettings.self, from: data) {
+            // Schema 2: Ollama is optional — clear the old baked-in Tailscale default.
+            if storedSchema < currentSchema, decoded.ollamaHost == "100.64.0.2" {
+                decoded.ollamaHost = ""
+                decoded.selectedChatModel = nil
+            }
+            UserDefaults.standard.set(currentSchema, forKey: settingsSchemaKey)
             return decoded
         }
+        UserDefaults.standard.set(currentSchema, forKey: settingsSchemaKey)
         return .default()
     }
 
     static func save(_ settings: AppSettings) {
         if let data = try? JSONEncoder().encode(settings) {
             UserDefaults.standard.set(data, forKey: "app.settings")
+            UserDefaults.standard.set(currentSchema, forKey: settingsSchemaKey)
         }
     }
 }

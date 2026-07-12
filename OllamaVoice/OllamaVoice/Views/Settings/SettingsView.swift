@@ -9,49 +9,76 @@ struct SettingsView: View {
         NavigationStack {
             Form {
                 Section {
-                    Picker("Scheme", selection: $app.settings.ollamaScheme) {
-                        ForEach(OllamaURLScheme.allCases) { scheme in
-                            Text(scheme.title).tag(scheme)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-
-                    TextField("Host", text: $app.settings.ollamaHost)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                        .keyboardType(.URL)
-                        .textContentType(.URL)
-
-                    TextField("Port", text: $portText)
-                        .keyboardType(.numberPad)
-                        .onChange(of: portText) { _, newValue in
-                            let digits = newValue.filter(\.isNumber)
-                            if digits != newValue { portText = digits }
-                            if let port = Int(digits), (1...65535).contains(port) {
-                                app.settings.ollamaPort = port
+                    Toggle("Use Ollama backend", isOn: Binding(
+                        get: { app.settings.isOllamaConfigured },
+                        set: { enabled in
+                            if enabled {
+                                if app.settings.ollamaHost.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                                    app.settings.ollamaHost = "127.0.0.1"
+                                }
+                            } else {
+                                app.settings.ollamaHost = ""
+                                app.settings.selectedChatModel = nil
                             }
                         }
+                    ))
 
-                    TextField("Path prefix (optional)", text: $app.settings.ollamaPathPrefix)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                        .keyboardType(.asciiCapable)
+                    if app.settings.isOllamaConfigured {
+                        Picker("Scheme", selection: $app.settings.ollamaScheme) {
+                            ForEach(OllamaURLScheme.allCases) { scheme in
+                                Text(scheme.title).tag(scheme)
+                            }
+                        }
+                        .pickerStyle(.segmented)
 
-                    LabeledContent("URL", value: app.settings.ollamaBaseURL.absoluteString)
+                        TextField("Host", text: $app.settings.ollamaHost)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                            .keyboardType(.URL)
+                            .textContentType(.URL)
 
-                    Button("Test connection") {
-                        Task { await testConnection() }
-                    }
-                    if let testResult {
-                        Text(testResult)
-                            .font(.caption)
-                            .foregroundStyle(testResult.hasPrefix("OK") ? .green : .secondary)
-                            .textSelection(.enabled)
+                        TextField("Port", text: $portText)
+                            .keyboardType(.numberPad)
+                            .onChange(of: portText) { _, newValue in
+                                let digits = newValue.filter(\.isNumber)
+                                if digits != newValue { portText = digits }
+                                if let port = Int(digits), (1...65535).contains(port) {
+                                    app.settings.ollamaPort = port
+                                }
+                            }
+
+                        TextField("Path prefix (optional)", text: $app.settings.ollamaPathPrefix)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                            .keyboardType(.asciiCapable)
+
+                        if let url = app.settings.ollamaBaseURL {
+                            LabeledContent("URL", value: url.absoluteString)
+                        }
+
+                        Button("Test connection") {
+                            Task { await testConnection() }
+                        }
+                        if let testResult {
+                            Text(testResult)
+                                .font(.caption)
+                                .foregroundStyle(testResult.hasPrefix("OK") ? .green : .secondary)
+                                .textSelection(.enabled)
+                        }
                     }
                 } header: {
-                    Text("Ollama")
+                    Text("Ollama (optional)")
                 } footer: {
-                    Text("Use HTTP for direct Tailscale/LAN Ollama. Switch to HTTPS if you front it with Caddy/NPM or another TLS proxy. Path prefix is for mounts like https://host/ollama.")
+                    Text("Off by default. Voice / STT / on-device model downloads work without any server. Turn this on only if you have an Ollama host to chat or pull into.")
+                }
+
+                Section("Suggested model") {
+                    Text(AppSettings.suggestedCodingModel)
+                        .font(.caption)
+                        .textSelection(.enabled)
+                    Text("Lightweight abliterated coding agent that also works well with spoken replies once Ollama is connected.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
 
                 Section("Chatterbox") {
@@ -65,9 +92,6 @@ struct SettingsView: View {
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
                     .keyboardType(.URL)
-                    Text("When set, Chatterbox TTS posts to `/tts` with text + optional base64 voice prompt. Leave empty to use on-device downloaded weights.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
                     Link("Chatterbox on GitHub", destination: URL(string: "https://github.com/resemble-ai/chatterbox")!)
                 }
 
@@ -81,20 +105,17 @@ struct SettingsView: View {
                     Button("Request mic + speech permission") {
                         Task { await app.speechRecognizer.requestAuthorization() }
                     }
-                    LabeledContent("Speech auth", value: "\(app.speechRecognizer.authorizationStatus.rawValue)")
                 }
 
                 Section("About") {
-                    Text("Ollama Voice talks to your Ollama host over Tailscale or HTTPS, downloads Piper/Kokoro/Chatterbox models for on-device speech, and clones voices for offline TTS. STT uses Apple’s on-device Speech framework.")
+                    Text("Starts on Voice. Ollama is an optional backend you can wire up anytime.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     LabeledContent("Build", value: Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "?")
                 }
             }
             .navigationTitle("Settings")
-            .onAppear {
-                portText = String(app.settings.ollamaPort)
-            }
+            .onAppear { portText = String(app.settings.ollamaPort) }
             .onChange(of: app.settings.ollamaPort) { _, newValue in
                 let rendered = String(newValue)
                 if portText != rendered { portText = rendered }
@@ -103,15 +124,16 @@ struct SettingsView: View {
     }
 
     private func testConnection() async {
-        testResult = "Testing \(app.settings.ollamaBaseURL.absoluteString)…"
-        // Force client onto latest URL before probe
-        await app.ollama.updateBaseURL(app.settings.ollamaBaseURL)
+        guard let url = app.settings.ollamaBaseURL else {
+            testResult = "Enter a host first"
+            return
+        }
+        testResult = "Testing \(url.absoluteString)…"
+        await app.ollama.updateBaseURL(url)
         do {
             let ok = try await app.ollama.health()
             let models = try await app.ollama.listLocalModels()
-            testResult = ok
-                ? "OK — \(models.count) models @ \(app.settings.ollamaBaseURL.absoluteString)"
-                : "Unreachable"
+            testResult = ok ? "OK — \(models.count) models" : "Unreachable"
         } catch {
             testResult = error.localizedDescription
         }
