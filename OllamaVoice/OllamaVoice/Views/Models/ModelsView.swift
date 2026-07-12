@@ -8,7 +8,7 @@ struct ModelsView: View {
     @State private var pullProgress: Double?
     @State private var pullStatus = ""
     @State private var errorText: String?
-    @State private var customName = ""
+    @State private var pasteField = ""
 
     @State private var hfHits: [HuggingFaceLLMHit] = []
     @State private var isSearching = false
@@ -27,41 +27,78 @@ struct ModelsView: View {
         }
     }
 
+    private var parsedPasteName: String? {
+        OllamaPasteParser.modelName(from: pasteField)
+    }
+
     var body: some View {
         NavigationStack {
             List {
                 Section {
-                    HStack {
-                        TextField("Pull name or hf.co/org/repo", text: $customName)
-                            .textInputAutocapitalization(.never)
-                            .autocorrectionDisabled()
-                            .keyboardType(.asciiCapable)
-                        Button("Pull") {
-                            Task { await pull(customName) }
-                        }
-                        .disabled(customName.isEmpty || pulling != nil)
+                    TextField(
+                        "Paste ollama run …, ollama.com link, or model name",
+                        text: $pasteField,
+                        axis: .vertical
+                    )
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .keyboardType(.URL)
+                    .lineLimit(1...4)
+
+                    if let parsed = parsedPasteName {
+                        LabeledContent("Will pull", value: parsed)
+                            .font(.caption)
                     }
+
+                    Button {
+                        Task { await pullFromPaste() }
+                    } label: {
+                        if pulling != nil {
+                            HStack {
+                                ProgressView()
+                                Text("Pulling…")
+                            }
+                        } else {
+                            Text("Pull & save locally")
+                        }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(parsedPasteName == nil || pulling != nil)
+
                     if let pulling {
-                        VStack(alignment: .leading) {
-                            Text("Pulling \(pulling)…")
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text(pulling).font(.caption).textSelection(.enabled)
                             if let pullProgress {
                                 ProgressView(value: pullProgress)
+                                Text("\(Int(pullProgress * 100))% · \(pullStatus)")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
                             } else {
                                 ProgressView()
+                                Text(pullStatus)
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
                             }
-                            Text(pullStatus).font(.caption).foregroundStyle(.secondary)
                         }
                     }
+
                     if let errorText {
-                        Text(errorText).foregroundStyle(.red).font(.caption).textSelection(.enabled)
+                        Text(errorText)
+                            .foregroundStyle(.red)
+                            .font(.caption)
+                            .textSelection(.enabled)
+                    } else if pullStatus.lowercased().hasPrefix("saved") {
+                        Text(pullStatus)
+                            .foregroundStyle(.green)
+                            .font(.caption)
                     }
                 } header: {
-                    Text("Save to Ollama (\(app.settings.ollamaHost))")
+                    Text("Paste run command or link")
                 } footer: {
-                    Text("Pulls install on your Ollama host for local chat. Hugging Face GGUF repos use `hf.co/org/model`.")
+                    Text("Examples: `ollama run richardyoung/qwythos-9b-abliterated` · https://ollama.com/richardyoung/qwythos-9b-abliterated · llama3.2:3b")
                 }
 
-                Section("Installed locally") {
+                Section("Installed on \(app.settings.ollamaHost)") {
                     if local.isEmpty {
                         Text("No models on the Ollama host yet.")
                             .foregroundStyle(.secondary)
@@ -92,109 +129,47 @@ struct ModelsView: View {
                     HStack {
                         Image(systemName: "magnifyingglass")
                             .foregroundStyle(.secondary)
-                        TextField("Search Hugging Face (llama, qwen, phi…)", text: $query)
+                        TextField("Search Hugging Face (optional)", text: $query)
                             .textInputAutocapitalization(.never)
                             .autocorrectionDisabled()
                             .onChange(of: query) { _, newValue in
                                 scheduleSearch(newValue)
                             }
-                        if isSearching {
-                            ProgressView()
-                        }
-                        if !query.isEmpty {
-                            Button {
-                                query = ""
-                                hfHits = []
-                                searchError = nil
-                            } label: {
-                                Image(systemName: "xmark.circle.fill")
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
+                        if isSearching { ProgressView() }
                     }
 
                     if let searchError {
-                        Text(searchError)
-                            .font(.caption)
-                            .foregroundStyle(.red)
+                        Text(searchError).font(.caption).foregroundStyle(.red)
                     }
 
-                    if !hfHits.isEmpty {
-                        ForEach(hfHits) { hit in
-                            VStack(alignment: .leading, spacing: 8) {
-                                HStack {
-                                    Text(hit.modelID).font(.headline)
-                                    Spacer()
-                                    if hit.isGGUF {
-                                        Text("GGUF")
-                                            .font(.caption2)
-                                            .padding(.horizontal, 8)
-                                            .padding(.vertical, 3)
-                                            .background(Color.green.opacity(0.2), in: Capsule())
-                                    }
-                                }
-                                Text(hit.detail)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                                Text(hit.ollamaPullName)
-                                    .font(.caption2)
-                                    .foregroundStyle(.tertiary)
-                                    .textSelection(.enabled)
-                                HStack {
-                                    Spacer()
-                                    let already = local.contains {
-                                        $0.name.contains(hit.modelID)
-                                            || $0.name == hit.ollamaPullName
-                                            || $0.name.hasPrefix("hf.co/\(hit.modelID)")
-                                    }
-                                    Button(already ? "Saved" : "Pull & save locally") {
-                                        Task { await pull(hit.ollamaPullName) }
-                                    }
-                                    .buttonStyle(.borderedProminent)
-                                    .disabled(pulling != nil || already)
-                                }
+                    ForEach(hfHits) { hit in
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text(hit.modelID).font(.headline)
+                            Text(hit.detail).font(.caption).foregroundStyle(.secondary)
+                            Button("Pull & save locally") {
+                                Task { await pullHF(hit) }
                             }
-                            .padding(.vertical, 4)
+                            .buttonStyle(.borderedProminent)
+                            .disabled(pulling != nil)
                         }
-                    } else if !isSearching,
-                              query.trimmingCharacters(in: .whitespacesAndNewlines).count >= 2,
-                              searchError == nil {
-                        Text("No Hugging Face LLM hits yet. Try “llama 3.2”, “qwen2.5 7b”, or “phi3 gguf”.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
                     }
                 } header: {
-                    Text("Search Hugging Face → Ollama")
-                } footer: {
-                    Text("Live search on huggingface.co. GGUF repos pull straight into your local Ollama via `hf.co/…`.")
+                    Text("Hugging Face → Ollama")
                 }
 
                 Section("Quick picks") {
                     ForEach(filteredCatalog) { entry in
-                        VStack(alignment: .leading, spacing: 6) {
-                            HStack {
+                        HStack {
+                            VStack(alignment: .leading) {
                                 Text(entry.name).font(.headline)
-                                Spacer()
-                                Text(entry.sizeHint).font(.caption2).foregroundStyle(.secondary)
+                                Text(entry.description).font(.caption).foregroundStyle(.secondary)
                             }
-                            Text(entry.description).font(.caption).foregroundStyle(.secondary)
-                            HStack {
-                                ForEach(entry.tags, id: \.self) { tag in
-                                    Text(tag)
-                                        .font(.caption2)
-                                        .padding(.horizontal, 8)
-                                        .padding(.vertical, 3)
-                                        .background(Color.white.opacity(0.08), in: Capsule())
-                                }
-                                Spacer()
-                                Button(local.contains(where: { $0.name.hasPrefix(entry.name) }) ? "Saved" : "Pull & save") {
-                                    Task { await pull(entry.name) }
-                                }
-                                .buttonStyle(.borderedProminent)
-                                .disabled(pulling != nil)
+                            Spacer()
+                            Button("Pull") {
+                                Task { await pull(entry.name) }
                             }
+                            .disabled(pulling != nil)
                         }
-                        .padding(.vertical, 4)
                     }
                 }
             }
@@ -217,53 +192,81 @@ struct ModelsView: View {
         searchTask = Task {
             try? await Task.sleep(nanoseconds: 350_000_000)
             guard !Task.isCancelled else { return }
-            await runHFSearch(trimmed)
-        }
-    }
-
-    private func runHFSearch(_ query: String) async {
-        isSearching = true
-        searchError = nil
-        do {
-            let hits = try await hf.searchLLMModels(query: query)
-            guard !Task.isCancelled else { return }
-            hfHits = hits
-        } catch {
-            if !Task.isCancelled {
+            do {
+                hfHits = try await hf.searchLLMModels(query: trimmed)
+                searchError = nil
+            } catch {
                 searchError = error.localizedDescription
                 hfHits = []
             }
+            isSearching = false
         }
-        isSearching = false
+    }
+
+    private func pullFromPaste() async {
+        guard let name = parsedPasteName else {
+            errorText = "Couldn’t parse a model name from that text."
+            return
+        }
+        await pull(name)
+    }
+
+    private func pullHF(_ hit: HuggingFaceLLMHit) async {
+        do {
+            pulling = hit.modelID
+            pullStatus = "Resolving GGUF quant…"
+            errorText = nil
+            let name = try await hf.resolveOllamaPullName(for: hit)
+            await pull(name)
+        } catch {
+            errorText = error.localizedDescription
+            pulling = nil
+        }
     }
 
     private func refresh() async {
         do {
             local = try await app.ollama.listLocalModels()
-            errorText = nil
         } catch {
             errorText = error.localizedDescription
         }
     }
 
     private func pull(_ name: String) async {
-        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmed = OllamaClient.normalizePullName(name)
         guard !trimmed.isEmpty else { return }
         pulling = trimmed
         pullProgress = nil
         pullStatus = "starting"
         errorText = nil
         do {
+            await app.ollama.updateBaseURL(app.settings.ollamaBaseURL)
             for try await status in await app.ollama.pullModel(name: trimmed) {
-                pullStatus = status.status ?? ""
-                pullProgress = status.progress
+                if let err = status.error, !err.isEmpty {
+                    throw OllamaError.pullFailed(err)
+                }
+                pullStatus = status.status ?? pullStatus
+                if let progress = status.progress {
+                    pullProgress = progress
+                }
             }
             await refresh()
-            app.settings.selectedChatModel = trimmed
+            if let match = local.first(where: {
+                OllamaClient.modelMatchesPull(localName: $0.name, pullName: trimmed)
+            }) {
+                app.settings.selectedChatModel = match.name
+                pullStatus = "Saved \(match.name)"
+                pasteField = ""
+            } else {
+                app.settings.selectedChatModel = trimmed
+                pullStatus = "Saved \(trimmed)"
+            }
         } catch {
             errorText = error.localizedDescription
+            pullStatus = "Failed"
         }
         pulling = nil
+        pullProgress = nil
     }
 
     private func delete(_ name: String) async {

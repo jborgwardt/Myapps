@@ -59,10 +59,11 @@ struct OllamaPullStatus: Decodable {
     let digest: String?
     let total: Int64?
     let completed: Int64?
+    let error: String?
 
     var progress: Double? {
         guard let total, total > 0, let completed else { return nil }
-        return Double(completed) / Double(total)
+        return min(1, Double(completed) / Double(total))
     }
 }
 

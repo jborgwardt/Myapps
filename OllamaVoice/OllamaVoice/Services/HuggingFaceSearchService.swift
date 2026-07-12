@@ -33,13 +33,22 @@ struct HuggingFaceLLMHit: Identifiable, Hashable {
     let likes: Int
     let tags: [String]
     let isGGUF: Bool
+    /// Preferred Ollama tag (e.g. Q4_K_M) when known from repo files.
+    var preferredQuant: String?
 
-    /// Ollama can pull Hugging Face GGUF repos as `hf.co/{modelID}`.
-    var ollamaPullName: String { "hf.co/\(modelID)" }
+    /// Ollama pull target. Uses huggingface.co (more reliable than hf.co on some builds).
+    var ollamaPullName: String {
+        let base = "huggingface.co/\(modelID)"
+        if let preferredQuant, !preferredQuant.isEmpty {
+            return "\(base):\(preferredQuant)"
+        }
+        return base
+    }
 
     var detail: String {
         var parts: [String] = []
         if isGGUF { parts.append("GGUF") }
+        if let preferredQuant { parts.append(preferredQuant) }
         if let pipelineTag, !pipelineTag.isEmpty { parts.append(pipelineTag) }
         if downloads > 0 { parts.append("\(downloads.formatted())↓") }
         return parts.joined(separator: " · ")
@@ -79,7 +88,7 @@ actor HuggingFaceSearchService {
         let rows = try await ggufRows + textRows
 
         var seen = Set<String>()
-        let hits: [HuggingFaceLLMHit] = rows.compactMap { row in
+        var hits: [HuggingFaceLLMHit] = rows.compactMap { row in
             guard let id = (row["modelId"] as? String) ?? (row["id"] as? String) else { return nil }
             guard seen.insert(id).inserted else { return nil }
             let tags = row["tags"] as? [String] ?? []
@@ -102,7 +111,8 @@ actor HuggingFaceSearchService {
                 downloads: row["downloads"] as? Int ?? 0,
                 likes: row["likes"] as? Int ?? 0,
                 tags: tags,
-                isGGUF: isGGUF
+                isGGUF: isGGUF,
+                preferredQuant: isGGUF ? "Q4_K_M" : nil
             )
         }
 
@@ -110,6 +120,28 @@ actor HuggingFaceSearchService {
             if lhs.isGGUF != rhs.isGGUF { return lhs.isGGUF && !rhs.isGGUF }
             return lhs.downloads > rhs.downloads
         }
+    }
+
+    /// Pick a concrete GGUF quant tag that exists in the repo (Q4_K_M preferred).
+    func resolveOllamaPullName(for hit: HuggingFaceLLMHit) async throws -> String {
+        guard hit.isGGUF else {
+            // Non-GGUF HF repos often can't be pulled by Ollama — still return a normalized name.
+            return OllamaClient.normalizePullName(hit.ollamaPullName)
+        }
+        let files = try await listDownloadableFiles(modelID: hit.modelID)
+        let ggufs = files.map(\.path).filter { $0.lowercased().hasSuffix(".gguf") }
+        let preference = ["Q4_K_M", "Q4_K_S", "Q5_K_M", "Q4_0", "Q8_0", "Q3_K_M", "IQ4_XS"]
+        for quant in preference {
+            if ggufs.contains(where: { $0.uppercased().contains(quant) }) {
+                return OllamaClient.normalizePullName("huggingface.co/\(hit.modelID):\(quant)")
+            }
+        }
+        // Fall back to filename stem as tag if present.
+        if let first = ggufs.sorted().first {
+            let tag = URL(fileURLWithPath: first).deletingPathExtension().lastPathComponent
+            return OllamaClient.normalizePullName("huggingface.co/\(hit.modelID):\(tag)")
+        }
+        return OllamaClient.normalizePullName(hit.ollamaPullName)
     }
 
     func searchPiperVoices(query: String) async throws -> [SpeechModelCatalogItem] {
