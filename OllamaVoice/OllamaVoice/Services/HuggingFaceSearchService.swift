@@ -25,6 +25,27 @@ struct HuggingFaceRepoFile: Identifiable, Hashable {
     let size: Int64?
 }
 
+struct HuggingFaceLLMHit: Identifiable, Hashable {
+    var id: String { modelID }
+    let modelID: String
+    let pipelineTag: String?
+    let downloads: Int
+    let likes: Int
+    let tags: [String]
+    let isGGUF: Bool
+
+    /// Ollama can pull Hugging Face GGUF repos as `hf.co/{modelID}`.
+    var ollamaPullName: String { "hf.co/\(modelID)" }
+
+    var detail: String {
+        var parts: [String] = []
+        if isGGUF { parts.append("GGUF") }
+        if let pipelineTag, !pipelineTag.isEmpty { parts.append(pipelineTag) }
+        if downloads > 0 { parts.append("\(downloads.formatted())↓") }
+        return parts.joined(separator: " · ")
+    }
+}
+
 actor HuggingFaceSearchService {
     private let session: URLSession = {
         let config = URLSessionConfiguration.default
@@ -38,12 +59,57 @@ actor HuggingFaceSearchService {
         guard trimmed.count >= 2 else { return [] }
 
         // Prefer TTS pipeline; also run a broader search so Piper/Kokoro repos without tags still appear.
-        async let tagged = search(query: trimmed, pipelineTag: "text-to-speech", limit: limit)
-        async let broad = search(query: trimmed, pipelineTag: nil, limit: limit)
+        async let tagged = searchSpeech(query: trimmed, pipelineTag: "text-to-speech", limit: limit)
+        async let broad = searchSpeech(query: trimmed, pipelineTag: nil, limit: limit)
         let merged = try await tagged + broad
         var seen = Set<String>()
         return merged.filter { seen.insert($0.modelID).inserted }
             .sorted { $0.downloads > $1.downloads }
+    }
+
+    /// Search Hugging Face for LLM weights (prefer GGUF) to pull into local Ollama.
+    func searchLLMModels(query: String, limit: Int = 30) async throws -> [HuggingFaceLLMHit] {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.count >= 2 else { return [] }
+
+        // Bias toward GGUF (Ollama-friendly) and general text-generation hits.
+        let ggufQuery = trimmed.lowercased().contains("gguf") ? trimmed : "\(trimmed) GGUF"
+        async let ggufRows = fetchModelRows(query: ggufQuery, pipelineTag: nil, limit: limit)
+        async let textRows = fetchModelRows(query: trimmed, pipelineTag: "text-generation", limit: limit)
+        let rows = try await ggufRows + textRows
+
+        var seen = Set<String>()
+        let hits: [HuggingFaceLLMHit] = rows.compactMap { row in
+            guard let id = (row["modelId"] as? String) ?? (row["id"] as? String) else { return nil }
+            guard seen.insert(id).inserted else { return nil }
+            let tags = row["tags"] as? [String] ?? []
+            let pipeline = row["pipeline_tag"] as? String
+            let blob = (id + " " + tags.joined(separator: " ")).lowercased()
+            let isGGUF = blob.contains("gguf") || tags.contains("gguf") || tags.contains("ggml")
+            let llmRelated =
+                isGGUF
+                || pipeline == "text-generation"
+                || blob.contains("instruct")
+                || blob.contains("llama")
+                || blob.contains("qwen")
+                || blob.contains("mistral")
+                || blob.contains("phi")
+                || blob.contains("gemma")
+            guard llmRelated else { return nil }
+            return HuggingFaceLLMHit(
+                modelID: id,
+                pipelineTag: pipeline,
+                downloads: row["downloads"] as? Int ?? 0,
+                likes: row["likes"] as? Int ?? 0,
+                tags: tags,
+                isGGUF: isGGUF
+            )
+        }
+
+        return hits.sorted { lhs, rhs in
+            if lhs.isGGUF != rhs.isGGUF { return lhs.isGGUF && !rhs.isGGUF }
+            return lhs.downloads > rhs.downloads
+        }
     }
 
     func searchPiperVoices(query: String) async throws -> [SpeechModelCatalogItem] {
@@ -108,30 +174,13 @@ actor HuggingFaceSearchService {
         )
     }
 
-    private func search(query: String, pipelineTag: String?, limit: Int) async throws -> [HuggingFaceModelHit] {
-        var components = URLComponents(string: "https://huggingface.co/api/models")!
-        var items: [URLQueryItem] = [
-            URLQueryItem(name: "search", value: query),
-            URLQueryItem(name: "limit", value: String(limit)),
-            URLQueryItem(name: "sort", value: "downloads"),
-            URLQueryItem(name: "direction", value: "-1")
-        ]
-        if let pipelineTag {
-            items.append(URLQueryItem(name: "pipeline_tag", value: pipelineTag))
-        }
-        components.queryItems = items
-
-        let (data, response) = try await session.data(from: components.url!)
-        guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
-            throw URLError(.badServerResponse)
-        }
-        let rows = try JSONSerialization.jsonObject(with: data) as? [[String: Any]] ?? []
+    private func searchSpeech(query: String, pipelineTag: String?, limit: Int) async throws -> [HuggingFaceModelHit] {
+        let rows = try await fetchModelRows(query: query, pipelineTag: pipelineTag, limit: limit)
         return rows.compactMap { row in
             guard let id = (row["modelId"] as? String) ?? (row["id"] as? String) else { return nil }
             let tags = row["tags"] as? [String] ?? []
             let pipeline = row["pipeline_tag"] as? String
             let blob = (id + " " + tags.joined(separator: " ") + " " + (pipeline ?? "")).lowercased()
-            // Keep speech-related hits for on-device use
             let speechRelated =
                 pipeline == "text-to-speech"
                 || blob.contains("tts")
@@ -151,6 +200,26 @@ actor HuggingFaceSearchService {
                 engineHint: Self.guessEngine(id: id, tags: tags, pipeline: pipeline)
             )
         }
+    }
+
+    private func fetchModelRows(query: String, pipelineTag: String?, limit: Int) async throws -> [[String: Any]] {
+        var components = URLComponents(string: "https://huggingface.co/api/models")!
+        var items: [URLQueryItem] = [
+            URLQueryItem(name: "search", value: query),
+            URLQueryItem(name: "limit", value: String(limit)),
+            URLQueryItem(name: "sort", value: "downloads"),
+            URLQueryItem(name: "direction", value: "-1")
+        ]
+        if let pipelineTag {
+            items.append(URLQueryItem(name: "pipeline_tag", value: pipelineTag))
+        }
+        components.queryItems = items
+
+        let (data, response) = try await session.data(from: components.url!)
+        guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
+            throw URLError(.badServerResponse)
+        }
+        return try JSONSerialization.jsonObject(with: data) as? [[String: Any]] ?? []
     }
 
     nonisolated static func guessEngine(id: String, tags: [String], pipeline: String?) -> TTSEngineKind {
