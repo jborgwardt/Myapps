@@ -71,9 +71,21 @@ enum AppTab: String, CaseIterable, Identifiable {
     }
 }
 
+enum OllamaURLScheme: String, Codable, CaseIterable, Identifiable {
+    case http
+    case https
+
+    var id: String { rawValue }
+
+    var title: String { rawValue.uppercased() }
+}
+
 struct AppSettings: Codable, Equatable {
+    var ollamaScheme: OllamaURLScheme
     var ollamaHost: String
     var ollamaPort: Int
+    /// Optional path prefix (e.g. `/ollama`) when behind a reverse proxy.
+    var ollamaPathPrefix: String
     var selectedChatModel: String?
     var ttsEngine: TTSEngineKind
     var selectedPiperVoice: String?
@@ -85,18 +97,71 @@ struct AppSettings: Codable, Equatable {
     static let defaultHost = "100.64.0.2"
     static let defaultPort = 11434
 
-    var ollamaBaseURL: URL {
-        URL(string: "http://\(ollamaHost):\(ollamaPort)")!
+    enum CodingKeys: String, CodingKey {
+        case ollamaScheme, ollamaHost, ollamaPort, ollamaPathPrefix
+        case selectedChatModel, ttsEngine, selectedPiperVoice, selectedKokoroVoice
+        case selectedVoiceCloneID, speakResponses, chatterboxEndpoint
     }
 
-    static func load() -> AppSettings {
-        if let data = UserDefaults.standard.data(forKey: "app.settings"),
-           let decoded = try? JSONDecoder().decode(AppSettings.self, from: data) {
-            return decoded
+    init(
+        ollamaScheme: OllamaURLScheme,
+        ollamaHost: String,
+        ollamaPort: Int,
+        ollamaPathPrefix: String,
+        selectedChatModel: String?,
+        ttsEngine: TTSEngineKind,
+        selectedPiperVoice: String?,
+        selectedKokoroVoice: String?,
+        selectedVoiceCloneID: UUID?,
+        speakResponses: Bool,
+        chatterboxEndpoint: String?
+    ) {
+        self.ollamaScheme = ollamaScheme
+        self.ollamaHost = ollamaHost
+        self.ollamaPort = ollamaPort
+        self.ollamaPathPrefix = ollamaPathPrefix
+        self.selectedChatModel = selectedChatModel
+        self.ttsEngine = ttsEngine
+        self.selectedPiperVoice = selectedPiperVoice
+        self.selectedKokoroVoice = selectedKokoroVoice
+        self.selectedVoiceCloneID = selectedVoiceCloneID
+        self.speakResponses = speakResponses
+        self.chatterboxEndpoint = chatterboxEndpoint
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        ollamaScheme = try c.decodeIfPresent(OllamaURLScheme.self, forKey: .ollamaScheme) ?? .http
+        ollamaHost = try c.decodeIfPresent(String.self, forKey: .ollamaHost) ?? Self.defaultHost
+        ollamaPort = try c.decodeIfPresent(Int.self, forKey: .ollamaPort) ?? Self.defaultPort
+        ollamaPathPrefix = try c.decodeIfPresent(String.self, forKey: .ollamaPathPrefix) ?? ""
+        selectedChatModel = try c.decodeIfPresent(String.self, forKey: .selectedChatModel)
+        ttsEngine = try c.decodeIfPresent(TTSEngineKind.self, forKey: .ttsEngine) ?? .apple
+        selectedPiperVoice = try c.decodeIfPresent(String.self, forKey: .selectedPiperVoice)
+        selectedKokoroVoice = try c.decodeIfPresent(String.self, forKey: .selectedKokoroVoice)
+        selectedVoiceCloneID = try c.decodeIfPresent(UUID.self, forKey: .selectedVoiceCloneID)
+        speakResponses = try c.decodeIfPresent(Bool.self, forKey: .speakResponses) ?? true
+        chatterboxEndpoint = try c.decodeIfPresent(String.self, forKey: .chatterboxEndpoint)
+    }
+
+    var ollamaBaseURL: URL {
+        var normalizedPrefix = ollamaPathPrefix.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !normalizedPrefix.isEmpty, !normalizedPrefix.hasPrefix("/") {
+            normalizedPrefix = "/" + normalizedPrefix
         }
-        return AppSettings(
+        if normalizedPrefix.hasSuffix("/") {
+            normalizedPrefix.removeLast()
+        }
+        let base = "\(ollamaScheme.rawValue)://\(ollamaHost):\(ollamaPort)\(normalizedPrefix)"
+        return URL(string: base) ?? URL(string: "http://\(Self.defaultHost):\(Self.defaultPort)")!
+    }
+
+    static func `default`() -> AppSettings {
+        AppSettings(
+            ollamaScheme: .http,
             ollamaHost: defaultHost,
             ollamaPort: defaultPort,
+            ollamaPathPrefix: "",
             selectedChatModel: nil,
             ttsEngine: .apple,
             selectedPiperVoice: "en_US-amy-medium",
@@ -105,6 +170,14 @@ struct AppSettings: Codable, Equatable {
             speakResponses: true,
             chatterboxEndpoint: nil
         )
+    }
+
+    static func load() -> AppSettings {
+        if let data = UserDefaults.standard.data(forKey: "app.settings"),
+           let decoded = try? JSONDecoder().decode(AppSettings.self, from: data) {
+            return decoded
+        }
+        return .default()
     }
 
     static func save(_ settings: AppSettings) {
