@@ -21,7 +21,9 @@ struct ContentView: View {
                 .tabItem { Label(AppTab.settings.title, systemImage: AppTab.settings.systemImage) }
                 .tag(AppTab.settings)
         }
-        .tint(Color(red: 0.35, green: 0.78, blue: 0.72))
+        .tint(CursorTheme.accent)
+        .cursorTabBarBehavior()
+        .background(CursorTheme.background.ignoresSafeArea())
     }
 }
 

@@ -29,9 +29,11 @@ struct ModelsView: View {
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                         Button("Open Settings") { app.selectedTab = .settings }
+                            .glassButton()
                     } header: {
                         Text("No Ollama backend")
                     }
+                    .cursorRows()
                 }
 
                 Section {
@@ -58,7 +60,7 @@ struct ModelsView: View {
                     } label: {
                         Text(puller.isPulling ? "Pulling…" : "Pull & save to Ollama")
                     }
-                    .buttonStyle(.borderedProminent)
+                    .glassProminentButton()
                     .disabled(!ollamaReady || parsedPasteName == nil || puller.isPulling)
 
                     if puller.isPulling || puller.fraction != nil || !puller.statusText.isEmpty {
@@ -111,6 +113,7 @@ struct ModelsView: View {
                 } footer: {
                     Text("Prefilled suggestion: lightweight abliterated coding model that pairs well with spoken replies. Paste any `ollama run …` or ollama.com link.")
                 }
+                .cursorRows()
 
                 if ollamaReady {
                     Section("Installed on \(app.settings.ollamaHost)") {
@@ -126,7 +129,7 @@ struct ModelsView: View {
                                 }
                                 Spacer()
                                 Button("Use") { app.settings.selectedChatModel = model.name }
-                                    .buttonStyle(.bordered)
+                                    .glassButton()
                             }
                             .swipeActions {
                                 Button(role: .destructive) {
@@ -137,6 +140,7 @@ struct ModelsView: View {
                             }
                         }
                     }
+                    .cursorRows()
 
                     Section {
                         Button("Pull suggested coding agent") {
@@ -157,12 +161,14 @@ struct ModelsView: View {
                                     guard let url = app.settings.ollamaBaseURL else { return }
                                     puller.pull(name: entry.name, client: app.ollama, baseURL: url)
                                 }
+                                .glassButton()
                                 .disabled(puller.isPulling)
                             }
                         }
                     } header: {
                         Text("Suggestions")
                     }
+                    .cursorRows()
 
                     Section {
                         HStack {
@@ -180,14 +186,17 @@ struct ModelsView: View {
                                 Button("Pull") {
                                     Task { await pullHF(hit) }
                                 }
+                                .glassButton()
                                 .disabled(puller.isPulling)
                             }
                         }
                     } header: {
                         Text("Hugging Face (optional)")
                     }
+                    .cursorRows()
                 }
             }
+            .cursorScreen()
             .navigationTitle("Models")
             .refreshable { await refresh() }
             .task { await refresh() }

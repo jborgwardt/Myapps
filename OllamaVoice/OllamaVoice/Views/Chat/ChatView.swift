@@ -2,9 +2,7 @@ import SwiftUI
 
 struct ChatView: View {
     @EnvironmentObject private var app: AppModel
-    @State private var messages: [ChatMessage] = [
-        ChatMessage(role: .assistant, content: "Voice works on-device. Connect an optional Ollama host in Settings if you want server chat.")
-    ]
+    @State private var messages: [ChatMessage] = []
     @State private var input = ""
     @State private var localModels: [OllamaLocalModel] = []
     @State private var isSending = false
@@ -15,28 +13,19 @@ struct ChatView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                LinearGradient(
-                    colors: [
-                        Color(red: 0.06, green: 0.09, blue: 0.12),
-                        Color(red: 0.08, green: 0.14, blue: 0.16)
-                    ],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-                .ignoresSafeArea()
+                CursorTheme.background.ignoresSafeArea()
 
                 VStack(spacing: 0) {
                     header
-                    Divider().overlay(Color.white.opacity(0.08))
-                    if !app.settings.isOllamaConfigured {
-                        setupBanner
+                    if messages.isEmpty {
+                        emptyState
+                    } else {
+                        messageList
                     }
-                    messageList
                     composer
                 }
             }
-            .navigationTitle("Chat")
-            .navigationBarTitleDisplayMode(.inline)
+            .toolbar(.hidden, for: .navigationBar)
             .task { await refresh() }
             .onDisappear {
                 sendTask?.cancel()
@@ -46,62 +35,109 @@ struct ChatView: View {
         }
     }
 
-    private var setupBanner: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("No Ollama backend configured")
-                .font(.headline)
-            Text("Mic + TTS still work from the Voice tab. Add a host in Settings only when you want pulls/chat against a server.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            Button("Configure Ollama") { app.selectedTab = .settings }
-                .buttonStyle(.borderedProminent)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding()
-        .background(Color.white.opacity(0.06))
-    }
+    // MARK: Header
 
     private var header: some View {
-        HStack(spacing: 12) {
-            Circle()
-                .fill(app.settings.isOllamaConfigured ? (connectionOK ? Color.green : Color.orange) : Color.secondary)
-                .frame(width: 8, height: 8)
-            Text(statusText)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .lineLimit(2)
+        HStack(spacing: 10) {
+            HStack(spacing: 7) {
+                Circle()
+                    .fill(app.settings.isOllamaConfigured ? (connectionOK ? Color.green : Color.orange) : CursorTheme.secondaryText)
+                    .frame(width: 6, height: 6)
+                Text(app.settings.isOllamaConfigured ? app.settings.ollamaHost : "local")
+                    .font(.system(.caption, design: .monospaced))
+                    .foregroundStyle(CursorTheme.secondaryText)
+                    .lineLimit(1)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 7)
+            .glassSurface(in: Capsule())
+
             Spacer()
+
             if !localModels.isEmpty {
-                Picker("Model", selection: Binding(
-                    get: {
-                        let current = app.settings.selectedChatModel ?? ""
-                        if localModels.contains(where: { $0.name == current }) { return current }
-                        return localModels.first?.name ?? ""
-                    },
-                    set: { app.settings.selectedChatModel = $0.isEmpty ? nil : $0 }
-                )) {
+                Menu {
                     ForEach(localModels) { model in
-                        Text(model.name).tag(model.name)
+                        Button {
+                            app.settings.selectedChatModel = model.name
+                        } label: {
+                            if app.settings.selectedChatModel == model.name {
+                                Label(model.name, systemImage: "checkmark")
+                            } else {
+                                Text(model.name)
+                            }
+                        }
                     }
+                } label: {
+                    HStack(spacing: 5) {
+                        Text(shortModelName)
+                            .font(.system(.caption, design: .monospaced))
+                            .lineLimit(1)
+                        Image(systemName: "chevron.up.chevron.down")
+                            .font(.system(size: 9, weight: .semibold))
+                    }
+                    .foregroundStyle(.primary)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 7)
                 }
-                .pickerStyle(.menu)
+                .glassSurface(in: Capsule(), interactive: true)
             }
         }
-        .padding(.horizontal)
-        .padding(.vertical, 10)
+        .padding(.horizontal, 16)
+        .padding(.top, 8)
+        .padding(.bottom, 10)
     }
+
+    private var shortModelName: String {
+        guard let name = app.settings.selectedChatModel, !name.isEmpty else { return "model" }
+        // "dagbs/qwen2.5-coder-1.5b-…:latest" → "qwen2.5-coder-1.5b-…"
+        let noOwner = name.split(separator: "/").last.map(String.init) ?? name
+        let noTag = noOwner.split(separator: ":").first.map(String.init) ?? noOwner
+        return noTag.count > 26 ? String(noTag.prefix(24)) + "…" : noTag
+    }
+
+    // MARK: Empty state
+
+    private var emptyState: some View {
+        VStack(spacing: 14) {
+            Spacer()
+            Image(systemName: "waveform")
+                .font(.system(size: 34, weight: .light))
+                .foregroundStyle(CursorTheme.secondaryText)
+            Text(app.settings.isOllamaConfigured ? "Ask anything" : "Voice works on-device")
+                .font(.title3.weight(.medium))
+            Text(app.settings.isOllamaConfigured
+                 ? "Replies stream from \(app.settings.ollamaHost) and can be spoken aloud."
+                 : "Mic + TTS run locally. Connect an optional Ollama host in Settings for chat.")
+                .font(.footnote)
+                .foregroundStyle(CursorTheme.secondaryText)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 44)
+            if !app.settings.isOllamaConfigured {
+                Button("Configure Ollama") { app.selectedTab = .settings }
+                    .glassButton()
+                    .padding(.top, 4)
+            }
+            Spacer()
+            Spacer()
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    // MARK: Messages
 
     private var messageList: some View {
         ScrollViewReader { proxy in
             ScrollView {
-                LazyVStack(alignment: .leading, spacing: 14) {
+                LazyVStack(alignment: .leading, spacing: 20) {
                     ForEach(messages) { message in
                         MessageBubble(message: message)
                             .id(message.id)
                     }
                 }
-                .padding()
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
             }
+            .scrollDismissesKeyboard(.interactively)
             .onChange(of: messages.count) { _, _ in
                 if let last = messages.last {
                     withAnimation { proxy.scrollTo(last.id, anchor: .bottom) }
@@ -110,69 +146,95 @@ struct ChatView: View {
         }
     }
 
+    // MARK: Composer
+
     private var composer: some View {
         VStack(spacing: 8) {
             if app.speechRecognizer.isRecording {
-                Text(app.speechRecognizer.transcript.isEmpty ? "Listening…" : app.speechRecognizer.transcript)
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal)
+                HStack(spacing: 8) {
+                    Image(systemName: "waveform")
+                        .symbolEffect(.variableColor.iterative, options: .repeating)
+                        .foregroundStyle(.red)
+                    Text(app.speechRecognizer.transcript.isEmpty ? "Listening…" : app.speechRecognizer.transcript)
+                        .font(.footnote)
+                        .foregroundStyle(CursorTheme.secondaryText)
+                        .lineLimit(2)
+                    Spacer()
+                }
+                .padding(.horizontal, 20)
             }
 
             HStack(alignment: .bottom, spacing: 10) {
-                Button {
-                    Task {
-                        await app.speechRecognizer.requestAuthorization()
-                        if app.speechRecognizer.isRecording {
-                            app.speechRecognizer.stop()
-                            let text = app.speechRecognizer.consumeTranscript()
-                            if !text.isEmpty { input = text }
-                        } else {
-                            app.speechRecognizer.start()
-                        }
-                    }
-                } label: {
-                    Image(systemName: app.speechRecognizer.isRecording ? "mic.fill" : "mic")
-                        .font(.title3)
-                        .foregroundStyle(app.speechRecognizer.isRecording ? Color.red : Color.primary)
-                        .frame(width: 40, height: 40)
-                }
-
-                TextField(app.settings.isOllamaConfigured ? "Message" : "Configure Ollama to chat", text: $input, axis: .vertical)
+                HStack(alignment: .bottom, spacing: 8) {
+                    TextField(
+                        app.settings.isOllamaConfigured ? "Ask anything" : "Voice-only — add Ollama in Settings",
+                        text: $input,
+                        axis: .vertical
+                    )
                     .textFieldStyle(.plain)
                     .lineLimit(1...5)
-                    .padding(10)
-                    .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 12))
+                    .padding(.leading, 16)
+                    .padding(.vertical, 12)
                     .disabled(!app.settings.isOllamaConfigured)
+
+                    Button {
+                        Task {
+                            await app.speechRecognizer.requestAuthorization()
+                            if app.speechRecognizer.isRecording {
+                                app.speechRecognizer.stop()
+                                let text = app.speechRecognizer.consumeTranscript()
+                                if !text.isEmpty { input = text }
+                            } else {
+                                app.speechRecognizer.start()
+                            }
+                        }
+                    } label: {
+                        Image(systemName: app.speechRecognizer.isRecording ? "mic.fill" : "mic")
+                            .font(.system(size: 17, weight: .medium))
+                            .foregroundStyle(app.speechRecognizer.isRecording ? Color.red : CursorTheme.secondaryText)
+                            .frame(width: 38, height: 38)
+                    }
+                    .padding(.trailing, 5)
+                    .padding(.bottom, 3)
+                }
+                .glassSurface(in: RoundedRectangle(cornerRadius: 22, style: .continuous))
 
                 if isSending {
                     Button {
                         sendTask?.cancel()
                         isSending = false
                     } label: {
-                        Image(systemName: "stop.circle.fill")
-                            .font(.system(size: 32))
-                            .foregroundStyle(.red)
+                        Image(systemName: "square.fill")
+                            .font(.system(size: 13, weight: .bold))
+                            .foregroundStyle(CursorTheme.background)
+                            .frame(width: 40, height: 40)
+                            .background(CursorTheme.accent, in: Circle())
                     }
                 } else {
                     Button {
                         sendTask?.cancel()
                         sendTask = Task { await send() }
                     } label: {
-                        Image(systemName: "arrow.up.circle.fill")
-                            .font(.system(size: 32))
-                            .symbolRenderingMode(.hierarchical)
+                        Image(systemName: "arrow.up")
+                            .font(.system(size: 16, weight: .bold))
+                            .foregroundStyle(canSend ? CursorTheme.background : CursorTheme.secondaryText)
+                            .frame(width: 40, height: 40)
+                            .background(canSend ? AnyShapeStyle(CursorTheme.accent) : AnyShapeStyle(CursorTheme.surfaceHigh), in: Circle())
                     }
-                    .disabled(!app.settings.isOllamaConfigured || input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    .disabled(!canSend)
                 }
             }
-            .padding(.horizontal)
-            .padding(.bottom, 10)
+            .padding(.horizontal, 12)
+            .padding(.bottom, 8)
         }
-        .padding(.top, 8)
-        .background(.ultraThinMaterial)
+        .padding(.top, 6)
     }
+
+    private var canSend: Bool {
+        app.settings.isOllamaConfigured && !input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    // MARK: Logic
 
     private func refresh() async {
         guard app.settings.isOllamaConfigured, let url = app.settings.ollamaBaseURL else {
@@ -251,29 +313,44 @@ struct ChatView: View {
     }
 }
 
+/// Cursor-style rows: user prompts sit in a soft gray bubble on the right,
+/// assistant output is plain full-width text.
 struct MessageBubble: View {
     let message: ChatMessage
 
     var body: some View {
-        HStack {
-            if message.role == .user { Spacer(minLength: 40) }
-            VStack(alignment: .leading, spacing: 4) {
-                Text(message.content.isEmpty && message.isStreaming ? "…" : message.content)
+        if message.role == .user {
+            HStack {
+                Spacer(minLength: 48)
+                Text(message.content)
                     .font(.body)
                     .textSelection(.enabled)
-                if message.isStreaming {
-                    ProgressView()
-                        .scaleEffect(0.7)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+                    .background(
+                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                            .fill(CursorTheme.surfaceHigh)
+                    )
+            }
+        } else {
+            VStack(alignment: .leading, spacing: 8) {
+                if message.content.isEmpty && message.isStreaming {
+                    HStack(spacing: 8) {
+                        ProgressView().scaleEffect(0.8)
+                        Text("Thinking…")
+                            .font(.callout)
+                            .foregroundStyle(CursorTheme.secondaryText)
+                    }
+                } else {
+                    Text(message.content)
+                        .font(.body)
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    if message.isStreaming {
+                        ProgressView().scaleEffect(0.7)
+                    }
                 }
             }
-            .padding(12)
-            .background(
-                RoundedRectangle(cornerRadius: 16)
-                    .fill(message.role == .user
-                          ? Color(red: 0.18, green: 0.42, blue: 0.40)
-                          : Color.white.opacity(0.07))
-            )
-            if message.role != .user { Spacer(minLength: 40) }
         }
     }
 }

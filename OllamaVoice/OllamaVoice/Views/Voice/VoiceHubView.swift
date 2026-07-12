@@ -25,12 +25,13 @@ struct VoiceHubView: View {
     var body: some View {
         NavigationStack {
             List {
-                playbackSection
-                cloneSection
-                huggingFaceSearchSection
-                starterCatalogSection
-                installedSection
+                playbackSection.cursorRows()
+                cloneSection.cursorRows()
+                huggingFaceSearchSection.cursorRows()
+                starterCatalogSection.cursorRows()
+                installedSection.cursorRows()
             }
+            .cursorScreen()
             .navigationTitle("Voice")
             .fileImporter(isPresented: $showImporter, allowedContentTypes: [.audio, .wav, .mpeg4Audio]) { result in
                 if case .success(let url) = result {
@@ -101,10 +102,11 @@ struct VoiceHubView: View {
                         app.voiceClones.startRecording()
                     }
                 }
-                .buttonStyle(.borderedProminent)
+                .glassProminentButton()
                 .tint(app.voiceClones.isRecording ? .red : .accentColor)
 
                 Button("Import audio") { showImporter = true }
+                    .glassButton()
             }
             Text("Clones are stored on-device for Chatterbox-style offline TTS. STT uses Apple on-device Speech.")
                 .font(.caption)
@@ -129,7 +131,7 @@ struct VoiceHubView: View {
                             app.settings.ttsEngine = .chatterbox
                         }
                     }
-                    .buttonStyle(.bordered)
+                    .glassButton()
                 }
                 .swipeActions {
                     Button(role: .destructive) {
@@ -202,7 +204,7 @@ struct VoiceHubView: View {
                                 .font(.caption2)
                                 .padding(.horizontal, 8)
                                 .padding(.vertical, 3)
-                                .background(Color.white.opacity(0.08), in: Capsule())
+                                .background(CursorTheme.surfaceHigh, in: Capsule())
                         }
                         Text(hit.detail)
                             .font(.caption)
@@ -222,7 +224,7 @@ struct VoiceHubView: View {
                                 Button("Download for on-device") {
                                     Task { await downloadHF(hit) }
                                 }
-                                .buttonStyle(.borderedProminent)
+                                .glassProminentButton()
                             }
                         }
                     }
@@ -298,7 +300,7 @@ struct VoiceHubView: View {
                     .font(.caption2)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 3)
-                    .background(Color.white.opacity(0.08), in: Capsule())
+                    .background(CursorTheme.surfaceHigh, in: Capsule())
                 Spacer()
                 if app.modelDownloads.isInstalled(item.id) {
                     Button("Remove") { app.modelDownloads.delete(id: item.id) }
@@ -311,7 +313,7 @@ struct VoiceHubView: View {
                     Button("Download") {
                         Task { await app.modelDownloads.download(item) }
                     }
-                    .buttonStyle(.borderedProminent)
+                    .glassProminentButton()
                 }
             }
         }

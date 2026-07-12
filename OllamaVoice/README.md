@@ -1,13 +1,17 @@
 # Ollama Voice
 
-iOS app that chats with **Ollama** at `100.64.0.2:11434` (configurable), searches/pulls models to that host, and downloads **Piper**, **Kokoro**, and **[Chatterbox](https://github.com/resemble-ai/chatterbox)** speech models for on-device / offline TTS. STT uses Apple’s on-device Speech framework. Voice clones (reference WAV) are saved locally for Chatterbox-style zero-shot TTS.
+Voice-first iOS app. On-device **STT** (Apple Speech) and **TTS** — **Piper**, **Kokoro**, and **[Chatterbox](https://github.com/resemble-ai/chatterbox)** models download straight from Hugging Face, and voice clones (reference audio) are stored locally for Chatterbox-style zero-shot TTS. **Ollama is an optional backend**: add a host in Settings when you want streaming chat and server-side model pulls.
+
+## Design
+
+Cursor-for-iOS-inspired monochrome dark UI: near-black backdrop, plain assistant text with right-aligned user bubbles, monospace host/model pills, and a floating rounded composer. On iOS 26+ (incl. iOS 27) the pills, composer, and buttons render with **Liquid Glass** (`glassEffect`, `.glass`/`.glassProminent` button styles, tab bar minimizes on scroll); earlier iOS falls back to ultra-thin materials. Deployment target stays iOS 17.
 
 ## Features
 
-- **Chat** — streaming Ollama chat, mic input (on-device STT), optional spoken replies
-- **Models** — browse curated catalog, search, pull/delete on the Ollama host
-- **Voice** — pick TTS engine (Apple / Piper / Kokoro / Chatterbox), download models, record/import voice clones
-- **Settings** — Ollama host/port, optional Chatterbox HTTP sidecar, permissions
+- **Chat** — streaming Ollama chat, mic input (on-device STT), optional spoken replies, model picker pill
+- **Models** — paste `ollama run …` / ollama.com links, Hugging Face GGUF search with quant resolution, live pull progress, curated abliterated suggestions
+- **Voice** — pick TTS engine (Apple / Piper / Kokoro / Chatterbox), search + download speech models, record/import voice clones
+- **Settings** — optional Ollama host/port/scheme, optional Chatterbox HTTP sidecar, permissions
 
 ## Open on Mac
 
@@ -20,4 +24,4 @@ open OllamaVoice.xcodeproj
 
 Select your Team for signing, pick an iPhone / simulator, Run.
 
-Default Ollama URL: `http://100.64.0.2:11434` (Tailscale → panzer). Cleartext HTTP to the Tailscale/LAN hosts is allowed via ATS exceptions in `Info.plist`.
+An unsigned IPA for external signing/sideloading lands in `dist/OllamaVoice-unsigned.ipa`. Cleartext HTTP to Tailscale/LAN hosts is allowed via ATS exceptions in `Info.plist`.

@@ -71,6 +71,7 @@ struct SettingsView: View {
                 } footer: {
                     Text("Off by default. Voice / STT / on-device model downloads work without any server. Turn this on only if you have an Ollama host to chat or pull into.")
                 }
+                .cursorRows()
 
                 Section("Suggested model") {
                     Text(AppSettings.suggestedCodingModel)
@@ -80,6 +81,7 @@ struct SettingsView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
+                .cursorRows()
 
                 Section("Chatterbox") {
                     TextField(
@@ -94,6 +96,7 @@ struct SettingsView: View {
                     .keyboardType(.URL)
                     Link("Chatterbox on GitHub", destination: URL(string: "https://github.com/resemble-ai/chatterbox")!)
                 }
+                .cursorRows()
 
                 Section("Speech") {
                     Picker("Default TTS", selection: $app.settings.ttsEngine) {
@@ -106,6 +109,7 @@ struct SettingsView: View {
                         Task { await app.speechRecognizer.requestAuthorization() }
                     }
                 }
+                .cursorRows()
 
                 Section("About") {
                     Text("Starts on Voice. Ollama is an optional backend you can wire up anytime.")
@@ -113,7 +117,9 @@ struct SettingsView: View {
                         .foregroundStyle(.secondary)
                     LabeledContent("Build", value: Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "?")
                 }
+                .cursorRows()
             }
+            .cursorScreen()
             .navigationTitle("Settings")
             .onAppear { portText = String(app.settings.ollamaPort) }
             .onChange(of: app.settings.ollamaPort) { _, newValue in

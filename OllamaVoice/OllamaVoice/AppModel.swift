@@ -18,7 +18,13 @@ final class AppModel: ObservableObject {
     init() {
         let settings = AppSettings.load()
         self.settings = settings
-        self.selectedTab = .voice
+        // Voice-first by default; `-startTab chat` launch arg overrides (debug/screenshots).
+        if let override = UserDefaults.standard.string(forKey: "startTab"),
+           let tab = AppTab(rawValue: override) {
+            self.selectedTab = tab
+        } else {
+            self.selectedTab = .voice
+        }
         // Placeholder URL until the user configures an optional Ollama backend.
         let bootstrap = settings.ollamaBaseURL ?? URL(string: "http://127.0.0.1:\(AppSettings.defaultPort)")!
         self.ollama = OllamaClient(baseURL: bootstrap)
