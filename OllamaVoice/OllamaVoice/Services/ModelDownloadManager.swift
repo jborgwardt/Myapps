@@ -283,7 +283,7 @@ enum SpeechModelCatalog {
         )
     }
 
-    static func parsePiperVoices(_ data: Data) throws -> [SpeechModelCatalogItem] {
+    static func parsePiperVoices(_ data: Data, languageFilter: Set<String>? = ["en", "de", "fr", "es", "it", "nl"]) throws -> [SpeechModelCatalogItem] {
         let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] ?? [:]
         var items: [SpeechModelCatalogItem] = []
         for (key, value) in json {
@@ -294,16 +294,21 @@ enum SpeechModelCatalog {
                   let name = dict["name"] as? String,
                   let files = dict["files"] as? [String: Any] else { continue }
 
-            // Prefer English + a few others to keep UI usable; full list is still searchable
             let family = (language["family"] as? String) ?? ""
-            guard family == "en" || ["de", "fr", "es", "it", "nl"].contains(family) else { continue }
+            if let languageFilter, !languageFilter.contains(family) {
+                continue
+            }
 
             var urls: [URL] = []
             var size: Int64 = 0
             for (path, meta) in files {
                 guard path.hasSuffix(".onnx") || path.hasSuffix(".onnx.json") else { continue }
-                if let m = meta as? [String: Any], let s = m["size_bytes"] as? Int64 {
-                    size += s
+                if let m = meta as? [String: Any] {
+                    if let s = m["size_bytes"] as? Int64 {
+                        size += s
+                    } else if let s = m["size_bytes"] as? Int {
+                        size += Int64(s)
+                    }
                 }
                 if let u = URL(string: "\(hfPiper)/\(path)") {
                     urls.append(u)

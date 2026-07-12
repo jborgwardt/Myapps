@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		07B1B467F9514037A74A6F13 /* ModelsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6780877FE025F225B255E588 /* ModelsView.swift */; };
 		1482326484FC205574092FFA /* VoiceHubView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F0C258EEDE51F7A6EE23869 /* VoiceHubView.swift */; };
+		321B1FB8B82B4C914F028E9C /* HuggingFaceSearchService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1AFCDB3F47B2E6A57A43716 /* HuggingFaceSearchService.swift */; };
 		52CAD04D61E30B90E40A2983 /* ChatMessage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E1EFCC98318197D3EB238FB /* ChatMessage.swift */; };
 		5446CB1B0C3FA53421246978 /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = D543C7284D92076EED9A0D01 /* AppModel.swift */; };
 		6F39654867D67A664C2A90EA /* PiperKokoroEngines.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF7146F777768B93119356B5 /* PiperKokoroEngines.swift */; };
@@ -39,6 +40,7 @@
 		9160B5A95C52D04FB6E2C137 /* OllamaVoice.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = OllamaVoice.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		9A367547E38109599B96C5AA /* ModelDownloadManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelDownloadManager.swift; sourceTree = "<group>"; };
 		A8D03C9EE3F74DF2A400B4B2 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		B1AFCDB3F47B2E6A57A43716 /* HuggingFaceSearchService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HuggingFaceSearchService.swift; sourceTree = "<group>"; };
 		C1CEE9F49F696A03D1597658 /* ChatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatView.swift; sourceTree = "<group>"; };
 		C8DD9904D00E8F8859F1F40E /* ChatterboxTTSEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatterboxTTSEngine.swift; sourceTree = "<group>"; };
 		CDB52F3D925B966B4B858FD7 /* TTSManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TTSManager.swift; sourceTree = "<group>"; };
@@ -95,6 +97,7 @@
 		75BB5A361B7F17A1EB8AA31A /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				B1AFCDB3F47B2E6A57A43716 /* HuggingFaceSearchService.swift */,
 				9A367547E38109599B96C5AA /* ModelDownloadManager.swift */,
 				2F4DDDC57E6E374FBBA2B949 /* OllamaClient.swift */,
 				09F65A7B3AC9F5E638DBD1FF /* SpeechRecognizer.swift */,
@@ -231,6 +234,7 @@
 				D05D629AB80FC7C470E43AE9 /* ChatView.swift in Sources */,
 				CF6EBDB4F53742615C8C61CA /* ChatterboxTTSEngine.swift in Sources */,
 				E68DCFC1B127CE3FF0E2F4C8 /* ContentView.swift in Sources */,
+				321B1FB8B82B4C914F028E9C /* HuggingFaceSearchService.swift in Sources */,
 				84DC64CAB68A68D90D4249E7 /* ModelDownloadManager.swift in Sources */,
 				07B1B467F9514037A74A6F13 /* ModelsView.swift in Sources */,
 				DACF74B905C3716B059626B8 /* OllamaClient.swift in Sources */,
@@ -377,7 +381,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 3;
+				CURRENT_PROJECT_VERSION = 4;
 				DEVELOPMENT_TEAM = "";
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -388,7 +392,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0.1;
+				MARKETING_VERSION = 1.0.2;
 				PRODUCT_BUNDLE_IDENTIFIER = com.vohefett.OllamaVoice;
 				PRODUCT_NAME = OllamaVoice;
 				SDKROOT = iphoneos;
@@ -404,7 +408,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 3;
+				CURRENT_PROJECT_VERSION = 4;
 				DEVELOPMENT_TEAM = "";
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -415,7 +419,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0.1;
+				MARKETING_VERSION = 1.0.2;
 				PRODUCT_BUNDLE_IDENTIFIER = com.vohefett.OllamaVoice;
 				PRODUCT_NAME = OllamaVoice;
 				SDKROOT = iphoneos;
