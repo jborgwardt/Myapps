@@ -31,13 +31,15 @@ final class AppModel: ObservableObject {
         $settings
             .map(\.ollamaBaseURL)
             .removeDuplicates()
+            .debounce(for: .milliseconds(200), scheduler: RunLoop.main)
             .sink { [weak self] url in
                 Task { await self?.ollama.updateBaseURL(url) }
-                AppSettings.save(self?.settings ?? settings)
             }
             .store(in: &cancellables)
 
         $settings
+            .dropFirst()
+            .debounce(for: .milliseconds(250), scheduler: RunLoop.main)
             .sink { [weak self] updated in
                 guard let self else { return }
                 AppSettings.save(updated)

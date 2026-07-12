@@ -10,6 +10,7 @@ struct ChatView: View {
     @State private var isSending = false
     @State private var connectionOK = false
     @State private var statusText = "Checking Ollama…"
+    @State private var sendTask: Task<Void, Never>?
 
     var body: some View {
         NavigationStack {
@@ -34,6 +35,11 @@ struct ChatView: View {
             .navigationTitle("Ollama Voice")
             .navigationBarTitleDisplayMode(.inline)
             .task { await refresh() }
+            .onDisappear {
+                sendTask?.cancel()
+                app.speechRecognizer.stop()
+                app.ttsManager.stop()
+            }
         }
     }
 
@@ -45,16 +51,29 @@ struct ChatView: View {
             Text(statusText)
                 .font(.caption)
                 .foregroundStyle(.secondary)
+                .lineLimit(2)
             Spacer()
-            Picker("Model", selection: Binding(
-                get: { app.settings.selectedChatModel ?? localModels.first?.name ?? "" },
-                set: { app.settings.selectedChatModel = $0 }
-            )) {
-                ForEach(localModels) { model in
-                    Text(model.name).tag(model.name)
+            if localModels.isEmpty {
+                Text("No models")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else {
+                Picker("Model", selection: Binding(
+                    get: {
+                        let current = app.settings.selectedChatModel ?? ""
+                        if localModels.contains(where: { $0.name == current }) {
+                            return current
+                        }
+                        return localModels.first?.name ?? ""
+                    },
+                    set: { app.settings.selectedChatModel = $0.isEmpty ? nil : $0 }
+                )) {
+                    ForEach(localModels) { model in
+                        Text(model.name).tag(model.name)
+                    }
                 }
+                .pickerStyle(.menu)
             }
-            .pickerStyle(.menu)
         }
         .padding(.horizontal)
         .padding(.vertical, 10)
@@ -71,7 +90,7 @@ struct ChatView: View {
                 }
                 .padding()
             }
-            .onChange(of: messages) { _, _ in
+            .onChange(of: messages.count) { _, _ in
                 if let last = messages.last {
                     withAnimation { proxy.scrollTo(last.id, anchor: .bottom) }
                 }
@@ -107,6 +126,7 @@ struct ChatView: View {
                         .foregroundStyle(app.speechRecognizer.isRecording ? Color.red : Color.primary)
                         .frame(width: 40, height: 40)
                 }
+                .disabled(isSending)
 
                 TextField("Message", text: $input, axis: .vertical)
                     .textFieldStyle(.plain)
@@ -114,14 +134,26 @@ struct ChatView: View {
                     .padding(10)
                     .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 12))
 
-                Button {
-                    Task { await send() }
-                } label: {
-                    Image(systemName: "arrow.up.circle.fill")
-                        .font(.system(size: 32))
-                        .symbolRenderingMode(.hierarchical)
+                if isSending {
+                    Button {
+                        sendTask?.cancel()
+                        isSending = false
+                    } label: {
+                        Image(systemName: "stop.circle.fill")
+                            .font(.system(size: 32))
+                            .foregroundStyle(.red)
+                    }
+                } else {
+                    Button {
+                        sendTask?.cancel()
+                        sendTask = Task { await send() }
+                    } label: {
+                        Image(systemName: "arrow.up.circle.fill")
+                            .font(.system(size: 32))
+                            .symbolRenderingMode(.hierarchical)
+                    }
+                    .disabled(input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
-                .disabled(input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isSending)
             }
             .padding(.horizontal)
             .padding(.bottom, 10)
@@ -132,59 +164,73 @@ struct ChatView: View {
 
     private func refresh() async {
         do {
+            await app.ollama.updateBaseURL(app.settings.ollamaBaseURL)
             connectionOK = try await app.ollama.health()
             localModels = try await app.ollama.listLocalModels()
-            if app.settings.selectedChatModel == nil {
+            if let selected = app.settings.selectedChatModel,
+               localModels.contains(where: { $0.name == selected }) {
+                // keep
+            } else {
                 app.settings.selectedChatModel = localModels.first?.name
             }
             statusText = connectionOK
                 ? "\(app.settings.ollamaHost):\(app.settings.ollamaPort) · \(localModels.count) models"
                 : "Ollama unreachable"
+        } catch is CancellationError {
+            // ignore
         } catch {
             connectionOK = false
             statusText = error.localizedDescription
+            localModels = []
         }
     }
 
     private func send() async {
         let text = input.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
-        guard let model = app.settings.selectedChatModel, !model.isEmpty else {
+
+        let model = app.settings.selectedChatModel?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !model.isEmpty else {
             statusText = "Pull a model first"
             return
         }
 
         input = ""
+        app.speechRecognizer.stop()
         messages.append(ChatMessage(role: .user, content: text))
         let assistantID = UUID()
         messages.append(ChatMessage(id: assistantID, role: .assistant, content: "", isStreaming: true))
         isSending = true
 
-        let payload = messages
-            .filter { !$0.isStreaming }
-            .map { OllamaChatMessage(role: $0.role.rawValue, content: $0.content) }
+        // Cap history so huge threads don't blow memory / payload size.
+        let history = Array(messages.filter { !$0.isStreaming }.suffix(40))
+        let payload = history.map { OllamaChatMessage(role: $0.role.rawValue, content: $0.content) }
 
         var assembled = ""
         do {
+            await app.ollama.updateBaseURL(app.settings.ollamaBaseURL)
             for try await chunk in await app.ollama.chat(model: model, messages: payload) {
+                if Task.isCancelled { break }
                 assembled += chunk
-                if let idx = messages.firstIndex(where: { $0.id == assistantID }) {
-                    messages[idx].content = assembled
-                }
+                updateAssistant(id: assistantID, content: assembled, streaming: true)
             }
-            if let idx = messages.firstIndex(where: { $0.id == assistantID }) {
-                messages[idx].isStreaming = false
-            }
-            if app.settings.speakResponses {
+            updateAssistant(id: assistantID, content: assembled.isEmpty && Task.isCancelled ? "(cancelled)" : assembled, streaming: false)
+            if !Task.isCancelled, app.settings.speakResponses, !assembled.isEmpty {
                 await app.ttsManager.speak(assembled)
             }
+        } catch is CancellationError {
+            updateAssistant(id: assistantID, content: assembled.isEmpty ? "(cancelled)" : assembled, streaming: false)
         } catch {
-            if let idx = messages.firstIndex(where: { $0.id == assistantID }) {
-                messages[idx].content = "Error: \(error.localizedDescription)"
-                messages[idx].isStreaming = false
-            }
+            let message = assembled.isEmpty ? "Error: \(error.localizedDescription)" : assembled + "\n\nError: \(error.localizedDescription)"
+            updateAssistant(id: assistantID, content: message, streaming: false)
         }
         isSending = false
+    }
+
+    private func updateAssistant(id: UUID, content: String, streaming: Bool) {
+        guard let idx = messages.firstIndex(where: { $0.id == id }) else { return }
+        messages[idx].content = content
+        messages[idx].isStreaming = streaming
     }
 }
 

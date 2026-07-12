@@ -9,7 +9,8 @@ final class ModelDownloadManager: ObservableObject {
     @Published var lastError: String?
 
     nonisolated static var modelsRoot: URL {
-        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+            ?? FileManager.default.temporaryDirectory
         let url = base.appendingPathComponent("OllamaVoice/SpeechModels", isDirectory: true)
         try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
         return url
@@ -25,10 +26,12 @@ final class ModelDownloadManager: ObservableObject {
 
     func refreshPiperCatalog() async {
         do {
-            let url = URL(string: "https://huggingface.co/rhasspy/piper-voices/resolve/main/voices.json")!
+            guard let url = URL(string: "https://huggingface.co/rhasspy/piper-voices/resolve/main/voices.json") else {
+                lastError = "Bad Piper catalog URL"
+                return
+            }
             let (data, _) = try await URLSession.shared.data(from: url)
             let remote = try SpeechModelCatalog.parsePiperVoices(data)
-            // Keep kokoro/chatterbox entries; replace piper ones
             catalog = SpeechModelCatalog.builtin.filter { $0.engine != .piper } + remote
         } catch {
             lastError = "Piper catalog refresh failed: \(error.localizedDescription)"

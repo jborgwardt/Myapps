@@ -12,7 +12,8 @@ final class VoiceCloneManager: ObservableObject {
     private var recordingURL: URL?
 
     nonisolated static var profilesDirectory: URL {
-        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+            ?? FileManager.default.temporaryDirectory
         let url = base.appendingPathComponent("OllamaVoice/VoiceClones", isDirectory: true)
         try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
         return url

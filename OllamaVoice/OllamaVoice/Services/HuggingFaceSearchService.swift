@@ -145,7 +145,9 @@ actor HuggingFaceSearchService {
     }
 
     func searchPiperVoices(query: String) async throws -> [SpeechModelCatalogItem] {
-        let url = URL(string: "https://huggingface.co/rhasspy/piper-voices/resolve/main/voices.json")!
+        guard let url = URL(string: "https://huggingface.co/rhasspy/piper-voices/resolve/main/voices.json") else {
+            throw URLError(.badURL)
+        }
         let (data, response) = try await session.data(from: url)
         guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
             throw URLError(.badServerResponse)
@@ -162,9 +164,13 @@ actor HuggingFaceSearchService {
     }
 
     func listDownloadableFiles(modelID: String) async throws -> [HuggingFaceRepoFile] {
-        var components = URLComponents(string: "https://huggingface.co/api/models/\(modelID)")!
+        let encodedID = modelID.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? modelID
+        guard var components = URLComponents(string: "https://huggingface.co/api/models/\(encodedID)") else {
+            throw URLError(.badURL)
+        }
         components.queryItems = [URLQueryItem(name: "expand", value: "siblings")]
-        let (data, response) = try await session.data(from: components.url!)
+        guard let url = components.url else { throw URLError(.badURL) }
+        let (data, response) = try await session.data(from: url)
         guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
             throw URLError(.badServerResponse)
         }
@@ -235,10 +241,12 @@ actor HuggingFaceSearchService {
     }
 
     private func fetchModelRows(query: String, pipelineTag: String?, limit: Int) async throws -> [[String: Any]] {
-        var components = URLComponents(string: "https://huggingface.co/api/models")!
+        guard var components = URLComponents(string: "https://huggingface.co/api/models") else {
+            throw URLError(.badURL)
+        }
         var items: [URLQueryItem] = [
             URLQueryItem(name: "search", value: query),
-            URLQueryItem(name: "limit", value: String(limit)),
+            URLQueryItem(name: "limit", value: String(max(1, min(limit, 100)))),
             URLQueryItem(name: "sort", value: "downloads"),
             URLQueryItem(name: "direction", value: "-1")
         ]
@@ -246,8 +254,9 @@ actor HuggingFaceSearchService {
             items.append(URLQueryItem(name: "pipeline_tag", value: pipelineTag))
         }
         components.queryItems = items
+        guard let url = components.url else { throw URLError(.badURL) }
 
-        let (data, response) = try await session.data(from: components.url!)
+        let (data, response) = try await session.data(from: url)
         guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
             throw URLError(.badServerResponse)
         }

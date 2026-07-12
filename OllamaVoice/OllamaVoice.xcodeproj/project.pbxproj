@@ -19,6 +19,7 @@
 		B11A912F71282763C19FD2F8 /* OllamaVoiceApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E7C3B0579726E90587C728A /* OllamaVoiceApp.swift */; };
 		B230D84FE6D27EE91958CAB3 /* SpeechRecognizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09F65A7B3AC9F5E638DBD1FF /* SpeechRecognizer.swift */; };
 		B53B7280CF004179609A64C6 /* VoiceProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8A7F062AC971CB5E9B16535 /* VoiceProfile.swift */; };
+		BE193B8E6D235D22A6584913 /* OllamaVoiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E04A4CA97028FF3E055A025 /* OllamaVoiceTests.swift */; };
 		CF6EBDB4F53742615C8C61CA /* ChatterboxTTSEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8DD9904D00E8F8859F1F40E /* ChatterboxTTSEngine.swift */; };
 		D05D629AB80FC7C470E43AE9 /* ChatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1CEE9F49F696A03D1597658 /* ChatView.swift */; };
 		D0B6B4633F0EB0E5DED41ABF /* VoiceCloneManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAB89B1274150BEBBFCC955D /* VoiceCloneManager.swift */; };
@@ -29,9 +30,21 @@
 		F24C5FC558A3FDB54FD62E60 /* OllamaModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2633C5AEF3A65F7B2D56625 /* OllamaModels.swift */; };
 /* End PBXBuildFile section */
 
+/* Begin PBXContainerItemProxy section */
+		F0C10C5F2DF84997CECFF985 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 383252A738827E3024A9000B /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = D20B4DBA9A3D268C3FAF50B1;
+			remoteInfo = OllamaVoice;
+		};
+/* End PBXContainerItemProxy section */
+
 /* Begin PBXFileReference section */
 		09F65A7B3AC9F5E638DBD1FF /* SpeechRecognizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeechRecognizer.swift; sourceTree = "<group>"; };
 		18DE9010BC661AD74E66FC0A /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		1E04A4CA97028FF3E055A025 /* OllamaVoiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OllamaVoiceTests.swift; sourceTree = "<group>"; };
+		28A1EDB6BD06B9EE222964DF /* OllamaVoiceTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = OllamaVoiceTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		2F4DDDC57E6E374FBBA2B949 /* OllamaClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OllamaClient.swift; sourceTree = "<group>"; };
 		4E7C3B0579726E90587C728A /* OllamaVoiceApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OllamaVoiceApp.swift; sourceTree = "<group>"; };
 		5004D10C1D90E0B042AE2474 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
@@ -66,6 +79,7 @@
 			isa = PBXGroup;
 			children = (
 				FD3515E2430195F470AE9471 /* OllamaVoice */,
+				767AB871A807BDD8D32B15DF /* OllamaVoiceTests */,
 				F281D8542757823BAEFF92DE /* Products */,
 			);
 			sourceTree = "<group>";
@@ -110,6 +124,14 @@
 			path = Services;
 			sourceTree = "<group>";
 		};
+		767AB871A807BDD8D32B15DF /* OllamaVoiceTests */ = {
+			isa = PBXGroup;
+			children = (
+				1E04A4CA97028FF3E055A025 /* OllamaVoiceTests.swift */,
+			);
+			path = OllamaVoiceTests;
+			sourceTree = "<group>";
+		};
 		837526CE3476FF5749230260 /* Views */ = {
 			isa = PBXGroup;
 			children = (
@@ -143,6 +165,7 @@
 			isa = PBXGroup;
 			children = (
 				9160B5A95C52D04FB6E2C137 /* OllamaVoice.app */,
+				28A1EDB6BD06B9EE222964DF /* OllamaVoiceTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -164,6 +187,24 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		71386A185CCEAFC723618C16 /* OllamaVoiceTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 881D85AA0F2EFAD06B48A6CB /* Build configuration list for PBXNativeTarget "OllamaVoiceTests" */;
+			buildPhases = (
+				3549959DED746BD448F342AA /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				5E48F913FC5FC325EE4743E4 /* PBXTargetDependency */,
+			);
+			name = OllamaVoiceTests;
+			packageProductDependencies = (
+			);
+			productName = OllamaVoiceTests;
+			productReference = 28A1EDB6BD06B9EE222964DF /* OllamaVoiceTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 		D20B4DBA9A3D268C3FAF50B1 /* OllamaVoice */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = A219B2509CF1FF3654F5F29F /* Build configuration list for PBXNativeTarget "OllamaVoice" */;
@@ -212,6 +253,7 @@
 			projectRoot = "";
 			targets = (
 				D20B4DBA9A3D268C3FAF50B1 /* OllamaVoice */,
+				71386A185CCEAFC723618C16 /* OllamaVoiceTests */,
 			);
 		};
 /* End PBXProject section */
@@ -228,6 +270,14 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		3549959DED746BD448F342AA /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				BE193B8E6D235D22A6584913 /* OllamaVoiceTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		EFEC744375B277D8DD095D80 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -255,6 +305,14 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		5E48F913FC5FC325EE4743E4 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = D20B4DBA9A3D268C3FAF50B1 /* OllamaVoice */;
+			targetProxy = F0C10C5F2DF84997CECFF985 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		5FA140029FBDB1B09011A994 /* Debug */ = {
@@ -318,6 +376,23 @@
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		89B1BB80B6AA0435BE408445 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.vohefett.OllamaVoiceTests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/OllamaVoice.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/OllamaVoice";
 			};
 			name = Debug;
 		};
@@ -385,9 +460,10 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 6;
+				CURRENT_PROJECT_VERSION = 7;
 				DEVELOPMENT_TEAM = "";
 				ENABLE_PREVIEWS = YES;
+				ENABLE_TESTABILITY = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = OllamaVoice/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Ollama Voice";
@@ -396,7 +472,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0.4;
+				MARKETING_VERSION = 1.0.5;
 				PRODUCT_BUNDLE_IDENTIFIER = com.vohefett.OllamaVoice;
 				PRODUCT_NAME = OllamaVoice;
 				SDKROOT = iphoneos;
@@ -412,9 +488,10 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 6;
+				CURRENT_PROJECT_VERSION = 7;
 				DEVELOPMENT_TEAM = "";
 				ENABLE_PREVIEWS = YES;
+				ENABLE_TESTABILITY = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = OllamaVoice/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Ollama Voice";
@@ -423,12 +500,29 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0.4;
+				MARKETING_VERSION = 1.0.5;
 				PRODUCT_BUNDLE_IDENTIFIER = com.vohefett.OllamaVoice;
 				PRODUCT_NAME = OllamaVoice;
 				SDKROOT = iphoneos;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		FACF39D6AD5018111E6E7498 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.vohefett.OllamaVoiceTests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/OllamaVoice.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/OllamaVoice";
 			};
 			name = Release;
 		};
@@ -440,6 +534,15 @@
 			buildConfigurations = (
 				5FA140029FBDB1B09011A994 /* Debug */,
 				97CDA6B2D4014B43519D5398 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		881D85AA0F2EFAD06B48A6CB /* Build configuration list for PBXNativeTarget "OllamaVoiceTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				89B1BB80B6AA0435BE408445 /* Debug */,
+				FACF39D6AD5018111E6E7498 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;

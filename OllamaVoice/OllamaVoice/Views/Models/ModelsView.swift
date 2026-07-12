@@ -14,6 +14,7 @@ struct ModelsView: View {
     @State private var isSearching = false
     @State private var searchError: String?
     @State private var searchTask: Task<Void, Never>?
+    @State private var pullTask: Task<Void, Never>?
 
     private let hf = HuggingFaceSearchService()
 
@@ -64,6 +65,15 @@ struct ModelsView: View {
                     }
                     .buttonStyle(.borderedProminent)
                     .disabled(parsedPasteName == nil || pulling != nil)
+
+                    if pulling != nil {
+                        Button("Cancel pull", role: .destructive) {
+                            pullTask?.cancel()
+                            pulling = nil
+                            pullProgress = nil
+                            pullStatus = "Cancelled"
+                        }
+                    }
 
                     if let pulling {
                         VStack(alignment: .leading, spacing: 6) {
@@ -208,25 +218,36 @@ struct ModelsView: View {
             errorText = "Couldn’t parse a model name from that text."
             return
         }
-        await pull(name)
+        pullTask?.cancel()
+        pullTask = Task { await pull(name) }
+        await pullTask?.value
     }
 
     private func pullHF(_ hit: HuggingFaceLLMHit) async {
-        do {
-            pulling = hit.modelID
-            pullStatus = "Resolving GGUF quant…"
-            errorText = nil
-            let name = try await hf.resolveOllamaPullName(for: hit)
-            await pull(name)
-        } catch {
-            errorText = error.localizedDescription
-            pulling = nil
+        pullTask?.cancel()
+        pullTask = Task {
+            do {
+                pulling = hit.modelID
+                pullStatus = "Resolving GGUF quant…"
+                errorText = nil
+                let name = try await hf.resolveOllamaPullName(for: hit)
+                await pull(name)
+            } catch is CancellationError {
+                pullStatus = "Cancelled"
+                pulling = nil
+            } catch {
+                errorText = error.localizedDescription
+                pulling = nil
+            }
         }
+        await pullTask?.value
     }
 
     private func refresh() async {
         do {
             local = try await app.ollama.listLocalModels()
+        } catch is CancellationError {
+            // ignore
         } catch {
             errorText = error.localizedDescription
         }
@@ -242,6 +263,7 @@ struct ModelsView: View {
         do {
             await app.ollama.updateBaseURL(app.settings.ollamaBaseURL)
             for try await status in await app.ollama.pullModel(name: trimmed) {
+                if Task.isCancelled { throw CancellationError() }
                 if let err = status.error, !err.isEmpty {
                     throw OllamaError.pullFailed(err)
                 }
@@ -261,6 +283,8 @@ struct ModelsView: View {
                 app.settings.selectedChatModel = trimmed
                 pullStatus = "Saved \(trimmed)"
             }
+        } catch is CancellationError {
+            pullStatus = "Cancelled"
         } catch {
             errorText = error.localizedDescription
             pullStatus = "Failed"
