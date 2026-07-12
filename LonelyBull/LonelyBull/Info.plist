@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>Ollama Voice</string>
+	<string>LonelyBull</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -17,15 +17,15 @@
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>1.1.1</string>
+	<string>1.2.0</string>
 	<key>CFBundleVersion</key>
-	<string>10</string>
+	<string>11</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>Ollama Voice needs the microphone for speech-to-text and voice cloning.</string>
+	<string>LonelyBull needs the microphone for speech-to-text and voice cloning.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
-	<string>Ollama Voice uses on-device speech recognition so you can talk to your local Ollama models.</string>
+	<string>LonelyBull uses on-device speech recognition so you can talk to your local Ollama models.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

@@ -1,4 +1,4 @@
-name: OllamaVoice
+name: LonelyBull
 options:
   bundleIdPrefix: com.vohefett
   deploymentTarget:
@@ -11,22 +11,22 @@ settings:
     TARGETED_DEVICE_FAMILY: "1,2"
     IPHONEOS_DEPLOYMENT_TARGET: "17.0"
 targets:
-  OllamaVoice:
+  LonelyBull:
     type: application
     platform: iOS
     sources:
-      - path: OllamaVoice
+      - path: LonelyBull
         excludes:
           - "**/.DS_Store"
           - "Info.plist"
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.vohefett.OllamaVoice
-        PRODUCT_NAME: OllamaVoice
-        INFOPLIST_FILE: OllamaVoice/Info.plist
+        PRODUCT_BUNDLE_IDENTIFIER: com.vohefett.LonelyBull
+        PRODUCT_NAME: LonelyBull
+        INFOPLIST_FILE: LonelyBull/Info.plist
         GENERATE_INFOPLIST_FILE: false
-        CURRENT_PROJECT_VERSION: 10
-        MARKETING_VERSION: "1.1.1"
+        CURRENT_PROJECT_VERSION: 11
+        MARKETING_VERSION: "1.2.0"
         DEVELOPMENT_TEAM: ""
         CODE_SIGN_STYLE: Automatic
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
@@ -34,21 +34,21 @@ targets:
         SWIFT_EMIT_LOC_STRINGS: YES
         ENABLE_PREVIEWS: YES
         ENABLE_TESTABILITY: YES
-        INFOPLIST_KEY_CFBundleDisplayName: Ollama Voice
+        INFOPLIST_KEY_CFBundleDisplayName: LonelyBull
         INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents: YES
     scheme:
       testTargets:
-        - OllamaVoiceTests
-  OllamaVoiceTests:
+        - LonelyBullTests
+  LonelyBullTests:
     type: bundle.unit-test
     platform: iOS
     sources:
-      - path: OllamaVoiceTests
+      - path: LonelyBullTests
     dependencies:
-      - target: OllamaVoice
+      - target: LonelyBull
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.vohefett.OllamaVoiceTests
+        PRODUCT_BUNDLE_IDENTIFIER: com.vohefett.LonelyBullTests
         GENERATE_INFOPLIST_FILE: true
-        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/OllamaVoice.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/OllamaVoice"
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/LonelyBull.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/LonelyBull"
         BUNDLE_LOADER: "$(TEST_HOST)"

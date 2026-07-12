@@ -1,5 +1,5 @@
 import XCTest
-@testable import OllamaVoice
+@testable import LonelyBull
 
 final class OllamaPasteParserTests: XCTestCase {
     func testParsesRunCommand() {

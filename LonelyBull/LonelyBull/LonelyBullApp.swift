@@ -1,7 +1,7 @@
 import SwiftUI
 
 @main
-struct OllamaVoiceApp: App {
+struct LonelyBullApp: App {
     @StateObject private var appModel = AppModel()
 
     var body: some Scene {
